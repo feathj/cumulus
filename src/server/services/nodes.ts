@@ -1,7 +1,8 @@
 import { MemoryEntryStatus } from '@prisma/client';
-import type { AuthorKind, MemoryEntryType, NodeKind, Priority } from '@prisma/client';
+import type { AuthorKind, MemoryEntryType, NodeKind, Prisma, Priority } from '@prisma/client';
 
-import { NotFoundError } from '../errors';
+import { DomainError, NotFoundError } from '../errors';
+import { withTransaction } from './types';
 import type { Db } from './types';
 
 export interface NodeDetail {
@@ -94,4 +95,60 @@ export async function getNodeDetail(db: Db, id: string): Promise<NodeDetail> {
     memory: memoryEntries,
     inFocus: _count.focusItems > 0,
   };
+}
+
+export interface MoveNodeInput {
+  id: string;
+  priority: Priority;
+  /** The slot in the target tier, counted without the card itself. Clamped to the end. */
+  index: number;
+}
+
+interface Placement {
+  id: string;
+  priority: Priority;
+  position: number;
+}
+
+/** Writes positions 0..n-1 in list order, touching only rows that change. */
+async function renumber(tx: Prisma.TransactionClient, cards: Placement[], priority: Priority) {
+  for (const [position, card] of cards.entries()) {
+    if (card.priority === priority && card.position === position) continue;
+    await tx.node.update({ where: { id: card.id }, data: { priority, position } });
+  }
+}
+
+/**
+ * Moves an open card to a slot in a priority tier of its cluster — reordering
+ * within a tier and changing priority are the same operation. Both the tier it
+ * joins and the tier it leaves are renumbered, so positions stay 0..n-1 in
+ * board order. Completed cards aren't on the board: they can't be moved and
+ * don't take up a slot.
+ */
+export async function moveNode(db: Db, { id, priority, index }: MoveNodeInput): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id },
+      select: { id: true, clusterId: true, priority: true, position: true, completedAt: true },
+    });
+    if (!node) throw new NotFoundError('Node', id);
+    if (node.completedAt) {
+      throw new DomainError('CONFLICT', 'Completed cards are not on the board, so they cannot be moved.');
+    }
+
+    const openTier = (tier: Priority) =>
+      tx.node.findMany({
+        where: { clusterId: node.clusterId, priority: tier, completedAt: null, id: { not: id } },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, priority: true, position: true },
+      });
+
+    const target = await openTier(priority);
+    const slot = Math.min(Math.max(0, index), target.length);
+    await renumber(tx, [...target.slice(0, slot), node, ...target.slice(slot)], priority);
+
+    if (node.priority !== priority) {
+      await renumber(tx, await openTier(node.priority), node.priority);
+    }
+  });
 }

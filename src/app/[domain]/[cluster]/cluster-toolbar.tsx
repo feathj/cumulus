@@ -89,7 +89,7 @@ export function ClusterToolbar({ domainSlug, clusterSlug }: { domainSlug: string
         })}
       </SegmentGroup>
       <Typography sx={{ fontSize: 10, letterSpacing: '0.06em', color: 'text.secondary' }}>
-        {plural(openCards, 'open card')} · read-only prototype
+        {plural(openCards, 'open card')}
       </Typography>
     </Box>
   );

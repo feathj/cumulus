@@ -2,10 +2,12 @@
 
 See [REQUIREMENTS.md](REQUIREMENTS.md) for what this is and where it's going.
 
-A read-only prototype of the UI is in place: domain and cluster clouds (Sigma.js
-with d3-force physics), the card board, and the memory view, over a tRPC API
-and service layer, with Vitest against real Postgres. Inbox, focus, journal,
-every write path and the MCP server are still to come.
+A prototype of the UI is in place: domain and cluster clouds (Sigma.js with
+d3-force physics), the card board, and the memory view, over a tRPC API and
+service layer, with Vitest against real Postgres. The first write path is
+there too: dragging cards on the board to reorder them or change their
+priority. Inbox, focus, journal, the remaining writes and the MCP server are
+still to come.
 
 ## Local setup
 
@@ -50,7 +52,7 @@ every run — creating it if needed — and empties every table between tests.
 | `/` | Redirects to the first domain |
 | `/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards |
 | `/[domain]/[cluster]` | Cluster cloud: open cards in rings (now innermost), plus a memory orb |
-| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed below |
+| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed below. Drag to reorder or reprioritize |
 | `/[domain]/[cluster]/memory` | Memory: Knowledge (what's believed now) and Timeline (how it got there) |
 
 Any cluster view takes `?node=<id>` to open a card's detail drawer; it's set
@@ -263,8 +265,12 @@ transition is also recorded as a revision.
 
 ## Known gaps
 
-- Everything is read-only: no writes, no review actions, no drag-to-reorder.
-  Inbox, focus and journal sections are placeholders.
+- Moving cards on the board is the only write so far: no editing, no review
+  actions, no reordering in the focus block. Inbox, focus and journal sections
+  are placeholders.
+- A card move renumbers its siblings too, which bumps their `updatedAt`. Two
+  moves in the same cluster from different tabs at once could interleave; one
+  person on one laptop makes that unlikely, but it isn't locked against.
 - The cloud handles mouse dragging only; touch drags pan the camera. Dragged
   positions aren't saved to `layoutX` / `layoutY` yet.
 - In a big cluster the outer "someday" orbs are small enough that their labels

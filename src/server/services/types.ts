@@ -6,3 +6,11 @@ import type { Prisma, PrismaClient } from '@prisma/client';
  * need that to keep an entry and its revision in step.
  */
 export type Db = PrismaClient | Prisma.TransactionClient;
+
+/** Runs `work` in a transaction, or inside the caller's if `db` already is one. */
+export function withTransaction<T>(
+  db: Db,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return '$transaction' in db ? db.$transaction(work) : work(db);
+}
