@@ -1,0 +1,538 @@
+// Cumulus data model.
+//
+// Shape of the world, top down:
+//
+//   Domain ── Cluster ── Node ── Note (many)
+//     │
+//     ├── InboxItem     unfiled captures waiting to become Nodes
+//     ├── FocusItem     the single ordered work queue for a domain
+//     └── JournalEntry  one per day, linking back to Clusters and Nodes
+//
+// Memory sits beside that tree rather than inside it, scoped to a node, a
+// cluster, a domain, or nothing at all (global):
+//
+//   MemoryEntry  current knowledge — one decision, fact, preference, ...
+//     ├── MemoryRevision    every change, with a snapshot of the content
+//     ├── MemoryLink        [[wiki links]] and supersession between entries
+//     └── MemoryAttachment  images and documents
+//   MemoryEvent  append-only timeline of what happened
+//     ├── MemoryRevision    the entry changes made during the event
+//     └── MemoryAttachment
+//
+// A Node is the universal, linkable unit of work — a todo item or a
+// longer-running topic. Keeping both in one table lets journals and focus
+// blocks point at a single kind of id.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// What a Node is. TASK is a checkable todo, TOPIC is a standing area of work
+/// that is never simply "done".
+enum NodeKind {
+  TASK
+  TOPIC
+}
+
+/// Card-view tiers, ordered most to least urgent.
+enum Priority {
+  NOW
+  NEXT
+  SOMEDAY
+}
+
+/// Who produced a piece of content. Summaries and memory entries are
+/// LLM-written by default and flip to USER once I edit them by hand.
+enum AuthorKind {
+  USER
+  AGENT
+}
+
+/// What a knowledge entry holds. Exactly one of these per entry, so each can be
+/// revised or replaced on its own.
+///
+/// DECISION   a choice that was made, ideally with rationale and alternatives
+/// FACT       something observed or established to be true
+/// PREFERENCE how I want something done
+/// PROCEDURE  steps or checks that worked and should be repeated
+/// REFERENCE  where something lives: a doc, dashboard, repo or contact
+/// QUESTION   an open question, closed by superseding it with an answer
+enum MemoryEntryType {
+  DECISION
+  FACT
+  PREFERENCE
+  PROCEDURE
+  REFERENCE
+  QUESTION
+}
+
+/// PENDING entries were written by an agent and have not been reviewed.
+/// REJECTED ones stay so an agent can see the idea was already turned down.
+/// SUPERSEDED ones were replaced by a newer entry (see MemoryLink), ARCHIVED
+/// ones simply stopped mattering. Only ACTIVE entries make up the roll-up.
+enum MemoryEntryStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUPERSEDED
+  ARCHIVED
+}
+
+/// SESSION is a block of work, usually an agent's, that read or changed
+/// memory. LOG is something that happened: a meeting, a release, a game day.
+enum MemoryEventKind {
+  SESSION
+  LOG
+}
+
+/// What a MemoryRevision did to its entry.
+enum MemoryRevisionAction {
+  CREATED
+  UPDATED
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+  ARCHIVED
+  RESTORED
+}
+
+/// RELATES_TO is a resolved [[wiki link]] in an entry body. SUPERSEDES points
+/// from a newer entry to the one it replaces.
+enum MemoryLinkKind {
+  RELATES_TO
+  SUPERSEDES
+}
+
+// ---------------------------------------------------------------------------
+// Domain
+// ---------------------------------------------------------------------------
+
+/// Root record. "personal", "work", "church". Everything else hangs off one.
+model Domain {
+  id    String @id @default(cuid())
+  slug  String @unique
+  title String
+
+  /// Hue in degrees (0-359). The UI derives its whole oklch palette for the
+  /// domain from this one number, which is why it is a hue and not a hex code.
+  themeHue Int
+
+  /// Manual ordering of the domain switcher.
+  position Int
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  clusters       Cluster[]
+  inboxItems     InboxItem[]
+  focusItems     FocusItem[]
+  journalEntries JournalEntry[]
+  memoryEntries  MemoryEntry[]
+  memoryEvents   MemoryEvent[]
+
+  @@index([position])
+}
+
+// ---------------------------------------------------------------------------
+// Cluster
+// ---------------------------------------------------------------------------
+
+/// A broad grouping of work inside a domain — roughly a Trello list. Rendered
+/// as one bubble in the domain cloud, and drilled into for its own cloud, card
+/// and memory views. Its overview is its active memory entries, not a column.
+model Cluster {
+  id       String @id @default(cuid())
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  slug  String
+  title String
+
+  /// Ordering in list-shaped views.
+  position Int
+
+  /// Last position in the domain cloud after I dragged it, so the simulation
+  /// can resume where I left it rather than re-seeding every load.
+  layoutX Float?
+  layoutY Float?
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  nodes         Node[]
+  journalLinks  JournalClusterLink[]
+  memoryEntries MemoryEntry[]
+  memoryEvents  MemoryEvent[]
+
+  @@unique([domainId, slug])
+  @@unique([domainId, title])
+  @@index([domainId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Node
+// ---------------------------------------------------------------------------
+
+/// The unit of work inside a cluster — a Trello card, which can also carry its
+/// own memory.
+model Node {
+  id        String  @id @default(cuid())
+  clusterId String
+  cluster   Cluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  kind  NodeKind @default(TASK)
+  title String
+
+  summary          String?
+  summarySource    AuthorKind?
+  summaryUpdatedAt DateTime?
+
+  /// Tier and ordering within the tier on the card board.
+  priority Priority @default(NEXT)
+  position Int      @default(0)
+
+  /// Null while open. Set when checked off; "recently closed" reads from here.
+  completedAt DateTime?
+
+  /// Last dragged position in the cluster cloud.
+  layoutX Float?
+  layoutY Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes         Note[]
+  focusItems    FocusItem[]
+  journalLinks  JournalNodeLink[]
+  memoryEntries MemoryEntry[]
+  memoryEvents  MemoryEvent[]
+  /// Set when this node was filed out of the inbox.
+  inboxOrigin   InboxItem?
+
+  @@index([clusterId, priority, position])
+  @@index([clusterId, completedAt])
+  @@index([kind])
+}
+
+/// A dated note attached to a node. Notes accumulate; the summary is the thing
+/// that gets rewritten.
+model Note {
+  id     String @id @default(cuid())
+  nodeId String
+  node   Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  body   String
+  author AuthorKind @default(USER)
+
+  /// The day the note is about, which may predate when it was typed.
+  occurredAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([nodeId, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// Memory
+// ---------------------------------------------------------------------------
+//
+// Entries and events share one scoping rule: at most one of domainId,
+// clusterId and nodeId is set, and all three null means global. Only the
+// narrowest owner is stored, so moving a node to another cluster takes its
+// memory with it. The "at most one" part is a CHECK constraint added by hand
+// in the migration, since Prisma cannot express it.
+
+/// One piece of current knowledge. The ACTIVE entries in a scope are that
+/// scope's knowledge roll-up, and the cloud renders them alongside nodes.
+/// Content is never silently overwritten: every change also writes a
+/// MemoryRevision.
+model MemoryEntry {
+  id String @id @default(cuid())
+
+  domainId  String?
+  domain    Domain?  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  clusterId String?
+  cluster   Cluster? @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  nodeId    String?
+  node      Node?    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  type   MemoryEntryType
+  status MemoryEntryStatus @default(PENDING)
+  author AuthorKind        @default(AGENT)
+
+  /// The title and one-line description are all an agent sees in the memory
+  /// index, and what it uses to decide whether the full entry is worth loading.
+  title       String
+  description String
+
+  body String
+
+  /// Why this is true or was chosen, so an agent can handle cases the entry
+  /// did not anticipate.
+  rationale    String?
+  /// What was considered and rejected — the part of a decision that is most
+  /// expensive to reconstruct later.
+  alternatives String?
+  /// When and how an agent should act on this.
+  howToApply   String?
+
+  /// Last time someone confirmed this still holds. Entries about code and
+  /// plans go stale, and an old date tells an agent to check before trusting.
+  verifiedAt DateTime?
+
+  /// How often this entry has been pulled into agent context. Drives the
+  /// "heat" visual and shows which memories are actually earning their keep.
+  recallCount    Int       @default(0)
+  lastRecalledAt DateTime?
+
+  /// Set when I accept or reject an agent-written entry.
+  reviewedAt DateTime?
+
+  /// Last dragged position in the cloud.
+  layoutX Float?
+  layoutY Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  revisions   MemoryRevision[]
+  linksOut    MemoryLink[]       @relation("MemoryLinkFrom")
+  linksIn     MemoryLink[]       @relation("MemoryLinkTo")
+  attachments MemoryAttachment[]
+
+  @@index([domainId, status])
+  @@index([clusterId, status])
+  @@index([nodeId, status])
+  @@index([status, updatedAt])
+}
+
+/// Something that happened, in the order it happened. Append-only in spirit:
+/// events get typo fixes, not rewrites. The memory timeline is these plus the
+/// revisions made outside any event.
+model MemoryEvent {
+  id String @id @default(cuid())
+
+  domainId  String?
+  domain    Domain?  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  clusterId String?
+  cluster   Cluster? @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  nodeId    String?
+  node      Node?    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  kind   MemoryEventKind
+  author AuthorKind      @default(AGENT)
+
+  title String
+  body  String @default("")
+
+  /// Where this sits on the timeline, which is not always when it was written.
+  occurredAt DateTime
+
+  /// Provenance. Free-form so any MCP client can fill it in: the agent
+  /// ("claude-code"), its own session id, and a commit, PR or URL.
+  agent      String?
+  sessionRef String?
+  sourceUrl  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  revisions   MemoryRevision[]
+  attachments MemoryAttachment[]
+
+  @@index([domainId, occurredAt])
+  @@index([clusterId, occurredAt])
+  @@index([nodeId, occurredAt])
+  @@index([occurredAt])
+}
+
+/// One change to a knowledge entry. Never updated. Revisions made during an
+/// event hang off it, so the timeline can show what a session learned; hand
+/// edits in the UI have no event.
+model MemoryRevision {
+  id      String       @id @default(cuid())
+  entryId String
+  entry   MemoryEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  eventId String?
+  event   MemoryEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  action MemoryRevisionAction
+  author AuthorKind
+
+  /// The entry's type, status, title, description, body, rationale,
+  /// alternatives and howToApply as they stood after this change. JSON rather
+  /// than mirrored columns because it is read whole, to render history and
+  /// diffs, and never queried by field.
+  snapshot Json
+
+  createdAt DateTime @default(now())
+
+  @@index([entryId, createdAt])
+  @@index([eventId])
+}
+
+/// A directed edge between two entries. Stored rather than re-parsed, like
+/// journal links, so renaming the target does not silently break it. A link
+/// rather than a supersededById column so one entry can replace several.
+model MemoryLink {
+  fromEntryId String
+  fromEntry   MemoryEntry    @relation("MemoryLinkFrom", fields: [fromEntryId], references: [id], onDelete: Cascade)
+  toEntryId   String
+  toEntry     MemoryEntry    @relation("MemoryLinkTo", fields: [toEntryId], references: [id], onDelete: Cascade)
+  kind        MemoryLinkKind
+
+  /// For RELATES_TO, the text as it was typed between the brackets.
+  label String?
+
+  createdAt DateTime @default(now())
+
+  @@id([fromEntryId, toEntryId, kind])
+  @@index([toEntryId])
+}
+
+/// An image or document on exactly one entry or event (a CHECK constraint in
+/// the migration). The bytes live on disk, not in Postgres.
+model MemoryAttachment {
+  id      String       @id @default(cuid())
+  entryId String?
+  entry   MemoryEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  eventId String?
+  event   MemoryEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  fileName String
+  mimeType String
+  byteSize Int
+
+  /// Path of the file relative to the attachment storage root.
+  storageKey String @unique
+
+  /// What matters in the file, in plain text, so an agent can use the
+  /// attachment without loading it.
+  description String?
+
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([entryId, position])
+  @@index([eventId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+/// Landing spot for an idea before it has a home. Filing one creates a Node and
+/// leaves the original row behind as a record of the capture.
+model InboxItem {
+  id       String @id @default(cuid())
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  text String
+
+  capturedAt DateTime @default(now())
+
+  filedAt       DateTime?
+  filedAsNodeId String?   @unique
+  filedAsNode   Node?     @relation(fields: [filedAsNodeId], references: [id], onDelete: SetNull)
+
+  /// Set when an idea is thrown away without becoming a node.
+  discardedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domainId, capturedAt])
+  @@index([domainId, filedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Focus
+// ---------------------------------------------------------------------------
+
+/// One ordered queue per domain: what I have committed to this block of time.
+/// A node can sit in the queue once.
+model FocusItem {
+  id       String @id @default(cuid())
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  nodeId   String
+  node     Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  position Int
+  addedAt  DateTime @default(now())
+
+  @@unique([domainId, nodeId])
+  @@index([domainId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Journal
+// ---------------------------------------------------------------------------
+
+/// One free-text entry per domain per day.
+model JournalEntry {
+  id       String @id @default(cuid())
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  /// Calendar day, no time component.
+  entryDate DateTime @db.Date
+
+  body String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clusterLinks JournalClusterLink[]
+  nodeLinks    JournalNodeLink[]
+
+  @@unique([domainId, entryDate])
+  @@index([domainId, entryDate])
+}
+
+/// Resolved [[wiki link]] from a journal entry to a cluster. Stored rather than
+/// re-parsed so that renaming the target does not silently break the link.
+model JournalClusterLink {
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  clusterId      String
+  cluster        Cluster      @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  /// The text as it was typed between the brackets.
+  label String?
+
+  createdAt DateTime @default(now())
+
+  @@id([journalEntryId, clusterId])
+  @@index([clusterId])
+}
+
+/// Resolved [[wiki link]] from a journal entry to a node.
+model JournalNodeLink {
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  nodeId         String
+  node           Node         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  label String?
+
+  createdAt DateTime @default(now())
+
+  @@id([journalEntryId, nodeId])
+  @@index([nodeId])
+}
