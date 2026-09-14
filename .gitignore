@@ -11,5 +11,8 @@ out/
 # Database backups produced by the JSON export
 backups/*.json
 
+# Personal data dumps and the import config that maps them — never committed
+data/
+
 .DS_Store
 *.log

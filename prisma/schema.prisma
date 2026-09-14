@@ -12,12 +12,14 @@
 // cluster, a domain, or nothing at all (global):
 //
 //   MemoryEntry  current knowledge — one decision, fact, preference, ...
-//     ├── MemoryRevision    every change, with a snapshot of the content
-//     ├── MemoryLink        [[wiki links]] and supersession between entries
-//     └── MemoryAttachment  images and documents
+//     ├── MemoryRevision   every change, with a snapshot of the content
+//     └── MemoryLink       [[wiki links]] and supersession between entries
 //   MemoryEvent  append-only timeline of what happened
-//     ├── MemoryRevision    the entry changes made during the event
-//     └── MemoryAttachment
+//     └── MemoryRevision   the entry changes made during the event
+//   MemoryReference        [[wiki links]] between an entry and an event
+//
+// Attachment hangs off a Node, a MemoryEntry or a MemoryEvent: a file we hold
+// or a link to one somewhere else.
 //
 // A Node is the universal, linkable unit of work — a todo item or a
 // longer-running topic. Keeping both in one table lets journals and focus
@@ -51,22 +53,25 @@ enum Priority {
   SOMEDAY
 }
 
-/// Who produced a piece of content. Summaries and memory entries are
-/// LLM-written by default and flip to USER once I edit them by hand.
+/// Who produced a piece of content. Memory is LLM-written by default and flips
+/// to USER once I edit it by hand.
 enum AuthorKind {
   USER
   AGENT
 }
 
-/// What a knowledge entry holds. Exactly one of these per entry, so each can be
-/// revised or replaced on its own.
+/// What a knowledge entry holds.
 ///
 /// DECISION   a choice that was made, ideally with rationale and alternatives
 /// FACT       something observed or established to be true
 /// PREFERENCE how I want something done
 /// PROCEDURE  steps or checks that worked and should be repeated
-/// REFERENCE  where something lives: a doc, dashboard, repo or contact
+/// REFERENCE  where something lives: a doc, dashboard, repo, system or contact
 /// QUESTION   an open question, closed by superseding it with an answer
+/// SYNTHESIS  a maintained write-up pulling everything known about one subject
+///            together — an LLM-wiki page. The other types hold one thing each
+///            so they can be revised on their own; a synthesis is the readable
+///            overview that sits on top of them.
 enum MemoryEntryType {
   DECISION
   FACT
@@ -74,6 +79,7 @@ enum MemoryEntryType {
   PROCEDURE
   REFERENCE
   QUESTION
+  SYNTHESIS
 }
 
 /// PENDING entries were written by an agent and have not been reviewed.
@@ -89,7 +95,8 @@ enum MemoryEntryStatus {
 }
 
 /// SESSION is a block of work, usually an agent's, that read or changed
-/// memory. LOG is something that happened: a meeting, a release, a game day.
+/// memory. LOG is something that happened or arrived: a meeting, a release, a
+/// batch of commits, a design doc.
 enum MemoryEventKind {
   SESSION
   LOG
@@ -195,9 +202,9 @@ model Node {
   kind  NodeKind @default(TASK)
   title String
 
-  summary          String?
-  summarySource    AuthorKind?
-  summaryUpdatedAt DateTime?
+  /// What the card is, in my words — a Trello card description. Anything an
+  /// agent learns or maintains about the node belongs in its memory instead.
+  description String?
 
   /// Tier and ordering within the tier on the card board.
   priority Priority @default(NEXT)
@@ -214,6 +221,7 @@ model Node {
   updatedAt DateTime @updatedAt
 
   notes         Note[]
+  attachments   Attachment[]
   focusItems    FocusItem[]
   journalLinks  JournalNodeLink[]
   memoryEntries MemoryEntry[]
@@ -226,8 +234,8 @@ model Node {
   @@index([kind])
 }
 
-/// A dated note attached to a node. Notes accumulate; the summary is the thing
-/// that gets rewritten.
+/// A dated note attached to a node. Notes accumulate; the description is the
+/// thing that gets rewritten.
 model Note {
   id     String @id @default(cuid())
   nodeId String
@@ -289,6 +297,9 @@ model MemoryEntry {
   /// When and how an agent should act on this.
   howToApply   String?
 
+  /// Free-form labels for filtering the index, lower-case by convention.
+  tags String[] @default([])
+
   /// Last time someone confirmed this still holds. Entries about code and
   /// plans go stale, and an old date tells an agent to check before trusting.
   verifiedAt DateTime?
@@ -309,9 +320,10 @@ model MemoryEntry {
   updatedAt DateTime @updatedAt
 
   revisions   MemoryRevision[]
-  linksOut    MemoryLink[]       @relation("MemoryLinkFrom")
-  linksIn     MemoryLink[]       @relation("MemoryLinkTo")
-  attachments MemoryAttachment[]
+  linksOut    MemoryLink[]      @relation("MemoryLinkFrom")
+  linksIn     MemoryLink[]      @relation("MemoryLinkTo")
+  references  MemoryReference[]
+  attachments Attachment[]
 
   @@index([domainId, status])
   @@index([clusterId, status])
@@ -338,20 +350,25 @@ model MemoryEvent {
   title String
   body  String @default("")
 
+  /// Free-form labels, lower-case by convention.
+  tags String[] @default([])
+
   /// Where this sits on the timeline, which is not always when it was written.
   occurredAt DateTime
 
   /// Provenance. Free-form so any MCP client can fill it in: the agent
-  /// ("claude-code"), its own session id, and a commit, PR or URL.
+  /// ("claude-code"), its own session id, and whatever the event came from — a
+  /// commit range, PR, URL or document path.
   agent      String?
   sessionRef String?
-  sourceUrl  String?
+  sourceRef  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   revisions   MemoryRevision[]
-  attachments MemoryAttachment[]
+  references  MemoryReference[]
+  attachments Attachment[]
 
   @@index([domainId, occurredAt])
   @@index([clusterId, occurredAt])
@@ -403,21 +420,50 @@ model MemoryLink {
   @@index([toEntryId])
 }
 
-/// An image or document on exactly one entry or event (a CHECK constraint in
-/// the migration). The bytes live on disk, not in Postgres.
-model MemoryAttachment {
+/// A resolved [[wiki link]] between an entry and an event, from either body —
+/// most often an entry citing the source it was built from. Undirected: which
+/// side the text lived on does not change what the connection means.
+model MemoryReference {
+  entryId String
+  entry   MemoryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  eventId String
+  event   MemoryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  /// The text as it was typed between the brackets.
+  label String?
+
+  createdAt DateTime @default(now())
+
+  @@id([entryId, eventId])
+  @@index([eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Attachment
+// ---------------------------------------------------------------------------
+
+/// An image, document or link on exactly one node, entry or event. Either the
+/// bytes are ours (`storageKey`, on disk rather than in Postgres) or they live
+/// somewhere else (`url`) — exactly one of the two. Both "exactly one" rules
+/// are CHECK constraints in the migration.
+model Attachment {
   id      String       @id @default(cuid())
+  nodeId  String?
+  node    Node?        @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   entryId String?
   entry   MemoryEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
   eventId String?
   event   MemoryEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  fileName String
-  mimeType String
-  byteSize Int
+  /// File name, or the link text for a link.
+  name     String
+  /// Unknown for most links.
+  mimeType String?
+  byteSize Int?
 
   /// Path of the file relative to the attachment storage root.
-  storageKey String @unique
+  storageKey String? @unique
+  url        String?
 
   /// What matters in the file, in plain text, so an agent can use the
   /// attachment without loading it.
@@ -427,6 +473,7 @@ model MemoryAttachment {
 
   createdAt DateTime @default(now())
 
+  @@index([nodeId, position])
   @@index([entryId, position])
   @@index([eventId, position])
 }

@@ -70,7 +70,7 @@ interface EventSeed {
 }
 
 interface NodeDetailSeed {
-  summary?: string;
+  description?: string;
   notes?: { date: string; text: string }[];
 }
 
@@ -229,7 +229,7 @@ const DOMAINS: DomainSeed[] = [
     ],
     details: {
       'goals:Learn Spanish': {
-        summary:
+        description:
           'Target: hold a 20-minute unscripted conversation by next summer. Currently ~A2. Anki daily, weekly tutor on Tuesdays. Weakest area is past-tense conjugation and listening speed.',
         notes: [
           { date: '2026-08-24', text: 'Anki streak: 41 days. Mature cards 620.' },
@@ -240,7 +240,7 @@ const DOMAINS: DomainSeed[] = [
         ],
       },
       'goals:Scuba certification': {
-        summary:
+        description:
           'Open Water cert. Classroom done, pool sessions remaining, then four open-water dives. Quarry window closes late October.',
         notes: [{ date: '2026-09-05', text: 'One open slot on the 18th.' }],
       },
@@ -461,7 +461,7 @@ const DOMAINS: DomainSeed[] = [
     ],
     details: {
       'ship:Auth migration': {
-        summary:
+        description:
           'Moving session auth to short-lived tokens with refresh rotation. Two services still read the legacy cookie. Rollout is behind a per-tenant flag; 18% of tenants migrated.',
         notes: [
           {
@@ -823,7 +823,7 @@ const DOMAINS: DomainSeed[] = [
     ],
     details: {
       'teach:Sunday lesson — Ruth': {
-        summary:
+        description:
           'Four-week arc on covenant loyalty. Week two is the threshing floor; handle it plainly and without euphemism.',
         notes: [
           {
@@ -1235,13 +1235,7 @@ async function main(): Promise<void> {
             title,
             priority,
             position: tierCounters[priority]++,
-            ...(detail?.summary
-              ? {
-                  summary: detail.summary,
-                  summarySource: USER,
-                  summaryUpdatedAt: new Date(),
-                }
-              : {}),
+            ...(detail?.description ? { description: detail.description } : {}),
             ...(detail?.notes
               ? {
                   notes: {

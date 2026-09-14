@@ -11,7 +11,7 @@ CREATE TYPE "Priority" AS ENUM ('NOW', 'NEXT', 'SOMEDAY');
 CREATE TYPE "AuthorKind" AS ENUM ('USER', 'AGENT');
 
 -- CreateEnum
-CREATE TYPE "MemoryEntryType" AS ENUM ('DECISION', 'FACT', 'PREFERENCE', 'PROCEDURE', 'REFERENCE', 'QUESTION');
+CREATE TYPE "MemoryEntryType" AS ENUM ('DECISION', 'FACT', 'PREFERENCE', 'PROCEDURE', 'REFERENCE', 'QUESTION', 'SYNTHESIS');
 
 -- CreateEnum
 CREATE TYPE "MemoryEntryStatus" AS ENUM ('PENDING', 'ACTIVE', 'REJECTED', 'SUPERSEDED', 'ARCHIVED');
@@ -61,9 +61,7 @@ CREATE TABLE "Node" (
     "clusterId" TEXT NOT NULL,
     "kind" "NodeKind" NOT NULL DEFAULT 'TASK',
     "title" TEXT NOT NULL,
-    "summary" TEXT,
-    "summarySource" "AuthorKind",
-    "summaryUpdatedAt" TIMESTAMP(3),
+    "description" TEXT,
     "priority" "Priority" NOT NULL DEFAULT 'NEXT',
     "position" INTEGER NOT NULL DEFAULT 0,
     "completedAt" TIMESTAMP(3),
@@ -103,6 +101,7 @@ CREATE TABLE "MemoryEntry" (
     "rationale" TEXT,
     "alternatives" TEXT,
     "howToApply" TEXT,
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "verifiedAt" TIMESTAMP(3),
     "recallCount" INTEGER NOT NULL DEFAULT 0,
     "lastRecalledAt" TIMESTAMP(3),
@@ -125,10 +124,11 @@ CREATE TABLE "MemoryEvent" (
     "author" "AuthorKind" NOT NULL DEFAULT 'AGENT',
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL DEFAULT '',
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "occurredAt" TIMESTAMP(3) NOT NULL,
     "agent" TEXT,
     "sessionRef" TEXT,
-    "sourceUrl" TEXT,
+    "sourceRef" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -160,19 +160,31 @@ CREATE TABLE "MemoryLink" (
 );
 
 -- CreateTable
-CREATE TABLE "MemoryAttachment" (
+CREATE TABLE "MemoryReference" (
+    "entryId" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "label" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "MemoryReference_pkey" PRIMARY KEY ("entryId","eventId")
+);
+
+-- CreateTable
+CREATE TABLE "Attachment" (
     "id" TEXT NOT NULL,
+    "nodeId" TEXT,
     "entryId" TEXT,
     "eventId" TEXT,
-    "fileName" TEXT NOT NULL,
-    "mimeType" TEXT NOT NULL,
-    "byteSize" INTEGER NOT NULL,
-    "storageKey" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "mimeType" TEXT,
+    "byteSize" INTEGER,
+    "storageKey" TEXT,
+    "url" TEXT,
     "description" TEXT,
     "position" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "MemoryAttachment_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Attachment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -294,13 +306,19 @@ CREATE INDEX "MemoryRevision_eventId_idx" ON "MemoryRevision"("eventId");
 CREATE INDEX "MemoryLink_toEntryId_idx" ON "MemoryLink"("toEntryId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MemoryAttachment_storageKey_key" ON "MemoryAttachment"("storageKey");
+CREATE INDEX "MemoryReference_eventId_idx" ON "MemoryReference"("eventId");
 
 -- CreateIndex
-CREATE INDEX "MemoryAttachment_entryId_position_idx" ON "MemoryAttachment"("entryId", "position");
+CREATE UNIQUE INDEX "Attachment_storageKey_key" ON "Attachment"("storageKey");
 
 -- CreateIndex
-CREATE INDEX "MemoryAttachment_eventId_position_idx" ON "MemoryAttachment"("eventId", "position");
+CREATE INDEX "Attachment_nodeId_position_idx" ON "Attachment"("nodeId", "position");
+
+-- CreateIndex
+CREATE INDEX "Attachment_entryId_position_idx" ON "Attachment"("entryId", "position");
+
+-- CreateIndex
+CREATE INDEX "Attachment_eventId_position_idx" ON "Attachment"("eventId", "position");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "InboxItem_filedAsNodeId_key" ON "InboxItem"("filedAsNodeId");
@@ -369,10 +387,19 @@ ALTER TABLE "MemoryLink" ADD CONSTRAINT "MemoryLink_fromEntryId_fkey" FOREIGN KE
 ALTER TABLE "MemoryLink" ADD CONSTRAINT "MemoryLink_toEntryId_fkey" FOREIGN KEY ("toEntryId") REFERENCES "MemoryEntry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MemoryAttachment" ADD CONSTRAINT "MemoryAttachment_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "MemoryEntry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MemoryReference" ADD CONSTRAINT "MemoryReference_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "MemoryEntry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MemoryAttachment" ADD CONSTRAINT "MemoryAttachment_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "MemoryEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MemoryReference" ADD CONSTRAINT "MemoryReference_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "MemoryEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_nodeId_fkey" FOREIGN KEY ("nodeId") REFERENCES "Node"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "MemoryEntry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "MemoryEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InboxItem" ADD CONSTRAINT "InboxItem_domainId_fkey" FOREIGN KEY ("domainId") REFERENCES "Domain"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -401,6 +428,7 @@ ALTER TABLE "JournalNodeLink" ADD CONSTRAINT "JournalNodeLink_journalEntryId_fke
 -- AddForeignKey
 ALTER TABLE "JournalNodeLink" ADD CONSTRAINT "JournalNodeLink_nodeId_fkey" FOREIGN KEY ("nodeId") REFERENCES "Node"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
 -- AddCheckConstraint (hand-written: Prisma can't express these, so keep them
 -- if this migration is ever regenerated)
 
@@ -408,6 +436,7 @@ ALTER TABLE "JournalNodeLink" ADD CONSTRAINT "JournalNodeLink_nodeId_fkey" FOREI
 ALTER TABLE "MemoryEntry" ADD CONSTRAINT "MemoryEntry_single_owner_check" CHECK (num_nonnulls("domainId", "clusterId", "nodeId") <= 1);
 ALTER TABLE "MemoryEvent" ADD CONSTRAINT "MemoryEvent_single_owner_check" CHECK (num_nonnulls("domainId", "clusterId", "nodeId") <= 1);
 
--- An attachment belongs to exactly one entry or event.
-ALTER TABLE "MemoryAttachment" ADD CONSTRAINT "MemoryAttachment_single_owner_check" CHECK (num_nonnulls("entryId", "eventId") = 1);
-
+-- An attachment belongs to exactly one node, entry or event, and is either a
+-- stored file or a link.
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_single_owner_check" CHECK (num_nonnulls("nodeId", "entryId", "eventId") = 1);
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_file_or_link_check" CHECK (num_nonnulls("storageKey", "url") = 1);
