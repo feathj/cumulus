@@ -492,6 +492,7 @@ export async function importLlmWiki(
         author: entry.author,
         tags: entry.tags ?? [],
         createdAt: recordings.get(entry.title)!.at,
+        updatedAt: recordings.get(entry.title)!.at,
       },
     });
     entryIds.set(entry.title, row.id);

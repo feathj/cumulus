@@ -2,11 +2,10 @@
 
 See [REQUIREMENTS.md](REQUIREMENTS.md) for what this is and where it's going.
 
-The foundation is in place: a Next.js App Router app with MUI, a tRPC API over a
-service layer, Vitest against a real Postgres, the Prisma schema, a seed built
-from the design mockup, and an importer for real data. The home page is a
-placeholder that proves the stack end to end; the domain tabs, card board,
-memory views, Sigma.js cloud and MCP server are still to come.
+A read-only prototype of the UI is in place: domain and cluster clouds (Sigma.js
+with d3-force physics), the card board, and the memory view, over a tRPC API
+and service layer, with Vitest against real Postgres. Inbox, focus, journal,
+every write path and the MCP server are still to come.
 
 ## Local setup
 
@@ -44,11 +43,31 @@ every run — creating it if needed — and empties every table between tests.
 | `npm run db:import` | Wipe and load real data from `data/` (same production guard) |
 | `npm run db:studio` | Prisma Studio |
 
+## The UI
+
+| Route | View |
+| --- | --- |
+| `/` | Redirects to the first domain |
+| `/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards |
+| `/[domain]/[cluster]` | Cluster cloud: open cards in rings (now innermost), plus a memory orb |
+| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed below |
+| `/[domain]/[cluster]/memory` | Memory: Knowledge (what's believed now) and Timeline (how it got there) |
+
+Any cluster view takes `?node=<id>` to open a card's detail drawer; it's set
+with the History API, so selecting a card doesn't round-trip to the server.
+Memory takes `#entry-<id>` / `#event-<id>` to jump to and flash a row.
+
 ## How the code is laid out
 
 ```
 src/
   app/                 App Router: layouts, pages, and the tRPC route handler
+    [domain]/          domain shell and cloud
+      [cluster]/       cluster toolbar, card drawer, cloud, cards/, memory/
+  components/
+    cloud/             the physics cloud: Sigma renders, d3-force moves
+    markdown.tsx       markdown with [[wiki link]] resolution
+  lib/                 OKLCH→sRGB colour, palettes, formatting — pure and tested
   trpc/                tRPC <-> React Query glue for Client and Server Components
   server/
     services/          the rules: plain functions over a Prisma client
@@ -80,8 +99,13 @@ services never import tRPC. Anything else becomes `INTERNAL_SERVER_ERROR`.
 an in-process call, no HTTP — and wraps its children in `<HydrateClient>`. A
 Client Component then calls `useSuspenseQuery(useTRPC().x.queryOptions())` with
 the same options and gets the data without a refetch. superjson carries `Date`s
-across both hops. Pages that read the database call `connection()` first so
-they render per request rather than at build time.
+across both hops. The domain layout calls `connection()` so everything under it
+renders per request rather than at build time.
+
+**Colour is specified in OKLCH and converted.** The mockup's palette is OKLCH,
+derived per domain from `themeHue`. WebGL and MUI's palette helpers only parse
+sRGB, so `src/lib/color.ts` converts, and `domainPalette(hue)` gives every
+component the same accent colours.
 
 **Tests run against real Postgres.** No Prisma mocks: service tests exercise
 the actual queries. `src/test/global-setup.ts` runs `prisma migrate deploy`
@@ -89,6 +113,33 @@ against `TEST_DATABASE_URL` once per run, every test starts from empty tables,
 and test files run one at a time because they share the database. Router tests
 use `createCaller` with the test database to check validation and error mapping
 without HTTP.
+
+## The cloud
+
+`src/components/cloud/` splits the work:
+
+- **d3-force owns positions.** Three forces: `collide` (orbs shove each other
+  and the hub — this is what makes a flung orb push its neighbours), `orbit`
+  (pulls each orb toward its ring, stretched into an ellipse matching the
+  viewport), and `drift` (a gentle push along the ring). The simulation never
+  fully cools, which keeps the drift alive; with `prefers-reduced-motion` there
+  is no drift and it stops.
+- **Sigma renders.** Orbs use `@sigma/node-border` (a ring plus a fill); labels
+  are drawn inside each orb by a custom canvas label function that wraps and
+  fits the text, caching each fit.
+- **Sizes are graph units.** `itemSizesReference: "positions"` with a
+  `(ratio) => ratio` zoom function makes an orb's drawn radius and its collision
+  radius the same number, and a fixed custom bounding box stops Sigma rescaling
+  the view as orbs move.
+- **Dragging** pins the held orb in the simulation (`fx`/`fy`), holds the camera
+  still, and on release gives the orb the pointer's last velocity.
+- **Colours are flattened.** Sigma's WebGL programs render translucent colours
+  far brighter than a browser would, so `CloudCanvas` resolves each `rgba()`
+  against the page background first. Orbs are therefore opaque.
+
+Sigma is imported inside an effect, so the cloud renders nothing on the server
+and appears once the client has loaded it. Each cloud also renders a list of its
+orbs that is hidden until keyboard focus enters it.
 
 ## Importing real data
 
@@ -161,7 +212,8 @@ revisions made outside any event.
 hold one thing, so each can be superseded on its own. `SYNTHESIS` is a whole
 write-up about a subject — an LLM-wiki page. Importing a real wiki showed both
 are needed: agents naturally maintain pages, and pages are what a person reads,
-but a page can't be partly superseded.
+but a page can't be partly superseded. The memory view keeps them apart: single
+entries are shown in full, write-ups open on demand.
 
 **Memory is not a kind of Node.** Entries can belong to a domain or be global,
 and a Node can't live above a cluster. The cloud view queries entries next to
@@ -170,8 +222,8 @@ nodes rather than through them.
 **Memory stores only its narrowest owner.** At most one of `domainId`,
 `clusterId` and `nodeId` is set, and all null means global. Ancestors aren't
 copied down, so moving a node to another cluster takes its memory with it;
-"everything in this domain" is an `OR` across relation filters instead (see
-`scripts/import/index.ts`).
+"everything in this cluster" is an `OR` across relation filters instead (see
+`src/server/services/scope.ts`).
 
 **Entries are revised, not overwritten.** Every change writes a
 `MemoryRevision` with a JSON snapshot of the content. Replacing an entry is a
@@ -211,6 +263,17 @@ transition is also recorded as a revision.
 
 ## Known gaps
 
+- Everything is read-only: no writes, no review actions, no drag-to-reorder.
+  Inbox, focus and journal sections are placeholders.
+- The cloud handles mouse dragging only; touch drags pan the camera. Dragged
+  positions aren't saved to `layoutX` / `layoutY` yet.
+- In a big cluster the outer "someday" orbs are small enough that their labels
+  truncate until you zoom in.
+- The memory page ships every entry and event body up front — about 1.2 MB of
+  HTML for the imported continuity wiki. Write-up bodies should load on demand.
+- An unknown cluster renders the not-found page but with a 200 status, because
+  the domain's `loading.tsx` starts streaming before the cluster layout calls
+  `notFound()`.
 - Four rules are CHECK constraints added by hand to the migration SQL: at most
   one owner on `MemoryEntry` and on `MemoryEvent`, and exactly one owner and
   exactly one of `storageKey` / `url` on `Attachment`. Prisma doesn't model
@@ -220,13 +283,12 @@ transition is also recorded as a revision.
   service layer, with the focus-block write path.
 - Resolving `[[wiki links]]` in entry bodies into link rows, and writing a
   `MemoryRevision` alongside every entry change, are the memory service's job
-  once it exists. Links from entries to nodes aren't modelled yet.
-- The API is read-only so far: domains, clusters, and a cluster's card board.
+  once it has a write path. Links from entries to nodes aren't modelled yet.
 - No auth. Cumulus runs on my laptop; add it before it runs anywhere else.
 - No subtasks. Trello checklists have no home — though the export didn't include
   checklist items anyway.
-- No full-text search over memory yet. Postgres `tsvector` over title,
-  description and body is the likely first step.
+- No full-text search over memory yet; the memory view filters in the browser.
+  Postgres `tsvector` over title, description and body is the likely first step.
 - Attachment bytes live on disk and aren't part of JSON export/import yet.
 - Still on Prisma 6. Prisma 7 is out; upgrading is its own piece of work.
 - `npm audit` reports a high-severity advisory in `deepmerge-ts`, reachable only

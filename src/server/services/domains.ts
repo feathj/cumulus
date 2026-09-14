@@ -1,4 +1,7 @@
+import { MemoryEntryStatus } from '@prisma/client';
+
 import { NotFoundError } from '../errors';
+import { entriesInDomain } from './scope';
 import type { Db } from './types';
 
 export interface DomainRef {
@@ -16,6 +19,8 @@ export interface DomainSummary extends DomainRef {
   focusCount: number;
   /** Captures still waiting to be filed or discarded. */
   inboxCount: number;
+  /** Agent-written memory anywhere in the domain, waiting for review. */
+  pendingMemoryCount: number;
 }
 
 /** Every live domain in switcher order, with the counts a domain tab shows. */
@@ -38,8 +43,8 @@ export async function listDomains(db: Db): Promise<DomainSummary[]> {
     },
   });
 
-  // `_count` can't reach through clusters to their nodes, so open cards are
-  // counted per domain. There are only ever a handful of domains.
+  // `_count` can't reach through clusters to their nodes or memory, so those
+  // are counted per domain. There are only ever a handful of domains.
   return Promise.all(
     domains.map(async ({ _count, ...domain }) => ({
       ...domain,
@@ -48,6 +53,9 @@ export async function listDomains(db: Db): Promise<DomainSummary[]> {
       inboxCount: _count.inboxItems,
       openNodeCount: await db.node.count({
         where: { completedAt: null, cluster: { domainId: domain.id, archivedAt: null } },
+      }),
+      pendingMemoryCount: await db.memoryEntry.count({
+        where: { ...entriesInDomain(domain.id), status: MemoryEntryStatus.PENDING },
       }),
     })),
   );

@@ -1,10 +1,14 @@
 import { createCallerFactory, router } from './init';
 import { clusterRouter } from './routers/cluster';
 import { domainRouter } from './routers/domain';
+import { memoryRouter } from './routers/memory';
+import { nodeRouter } from './routers/node';
 
 export const appRouter = router({
   cluster: clusterRouter,
   domain: domainRouter,
+  memory: memoryRouter,
+  node: nodeRouter,
 });
 
 export type AppRouter = typeof appRouter;

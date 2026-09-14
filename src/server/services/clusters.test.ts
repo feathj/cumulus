@@ -1,9 +1,9 @@
-import { Priority } from '@prisma/client';
+import { MemoryEntryStatus, Priority } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import { NotFoundError } from '@/server/errors';
 import { testDb } from '@/test/db';
-import { createCluster, createDomain, createNode } from '@/test/factories';
+import { createCluster, createDomain, createMemoryEntry, createNode } from '@/test/factories';
 
 import { getClusterBoard, listClusters, RECENTLY_COMPLETED_LIMIT } from './clusters';
 
@@ -26,6 +26,35 @@ describe('listClusters', () => {
     ]);
   });
 
+  it('rolls up active and pending memory from the cluster and its cards', async () => {
+    const domain = await createDomain({ slug: 'personal' });
+    const house = await createCluster(domain.id, { slug: 'house' });
+    const books = await createCluster(domain.id, { slug: 'books' });
+    const node = await createNode(house.id);
+
+    await createMemoryEntry({ clusterId: house.id, recallCount: 4 });
+    await createMemoryEntry({ nodeId: node.id, recallCount: 2 });
+    await createMemoryEntry({ nodeId: node.id, status: MemoryEntryStatus.PENDING });
+    await createMemoryEntry({
+      clusterId: house.id,
+      status: MemoryEntryStatus.ARCHIVED,
+      recallCount: 10,
+    });
+
+    const clusters = await listClusters(testDb, 'personal');
+
+    expect(clusters.find((c) => c.id === house.id)?.memory).toEqual({
+      activeCount: 2,
+      pendingCount: 1,
+      recallCount: 6,
+    });
+    expect(clusters.find((c) => c.id === books.id)?.memory).toEqual({
+      activeCount: 0,
+      pendingCount: 0,
+      recallCount: 0,
+    });
+  });
+
   it('throws NotFoundError for an unknown domain', async () => {
     await expect(listClusters(testDb, 'nowhere')).rejects.toBeInstanceOf(NotFoundError);
   });
@@ -44,6 +73,18 @@ describe('getClusterBoard', () => {
     expect(titles(board.tiers.NOW)).toEqual(['First', 'Second']);
     expect(board.tiers.NEXT).toEqual([]);
     expect(titles(board.tiers.SOMEDAY)).toEqual(['Eventually']);
+  });
+
+  it("counts each card's active memory", async () => {
+    const domain = await createDomain({ slug: 'personal' });
+    const cluster = await createCluster(domain.id, { slug: 'house' });
+    const node = await createNode(cluster.id, { priority: Priority.NOW });
+    await createMemoryEntry({ nodeId: node.id });
+    await createMemoryEntry({ nodeId: node.id, status: MemoryEntryStatus.PENDING });
+
+    const board = await getClusterBoard(testDb, 'personal', 'house');
+
+    expect(board.tiers.NOW[0]?.memoryCount).toBe(1);
   });
 
   it('keeps completed cards out of the tiers, newest first and capped', async () => {

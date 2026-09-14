@@ -1,8 +1,9 @@
+import { MemoryEntryStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import { NotFoundError } from '@/server/errors';
 import { testDb } from '@/test/db';
-import { createCluster, createDomain, createNode } from '@/test/factories';
+import { createCluster, createDomain, createMemoryEntry, createNode } from '@/test/factories';
 
 import { getDomain, listDomains } from './domains';
 
@@ -43,6 +44,24 @@ describe('listDomains', () => {
       focusCount: 1,
       inboxCount: 1,
     });
+  });
+
+  it('counts pending memory at every level of the domain', async () => {
+    const domain = await createDomain({ slug: 'work' });
+    const other = await createDomain({ slug: 'church' });
+    const cluster = await createCluster(domain.id);
+    const node = await createNode(cluster.id);
+    const pending = { status: MemoryEntryStatus.PENDING };
+
+    await createMemoryEntry({ ...pending, domainId: domain.id });
+    await createMemoryEntry({ ...pending, clusterId: cluster.id });
+    await createMemoryEntry({ ...pending, nodeId: node.id });
+    await createMemoryEntry({ clusterId: cluster.id });
+    await createMemoryEntry({ ...pending, domainId: other.id });
+
+    const domains = await listDomains(testDb);
+
+    expect(domains.find((d) => d.slug === 'work')?.pendingMemoryCount).toBe(3);
   });
 });
 
