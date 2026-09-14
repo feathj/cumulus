@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: oklch(0.165 0.012 265); }
+  body { font-family: Karla, "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: oklch(0.78 0.10 250); text-decoration: none; }
+  a:hover { color: oklch(0.88 0.10 250); }
+  input, textarea, button { font: inherit; color: inherit; }
+  textarea { resize: none; }
+  ::selection { background: oklch(0.45 0.10 250); }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: oklch(0.32 0.015 265); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @keyframes drift { 0% { transform: translate(-50%, -50%) translateY(0px); } 50% { transform: translate(-50%, -50%) translateY(-4px); } 100% { transform: translate(-50%, -50%) translateY(0px); } }
+  @keyframes orbin { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+  @keyframes bloom { from { opacity: 0; transform: translate(-50%, -50%) scale(0.86); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</helmet>
+
+<div style="display: flex; height: 100dvh; min-height: 420px; width: 100%; overflow: hidden; background: radial-gradient(120% 90% at 50% 0%, oklch(0.215 0.02 265) 0%, oklch(0.155 0.012 265) 62%); color: oklch(0.93 0.008 265);">
+
+  <div style="width: 78px; flex: 0 0 78px; border-right: 1px solid oklch(0.26 0.014 265); display: flex; flex-direction: column; align-items: center; padding: 18px 0 16px; gap: 22px; background: oklch(0.155 0.012 265);">
+    <div style="width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, oklch(0.86 0.06 250), oklch(0.42 0.10 250) 70%, oklch(0.28 0.05 250)); box-shadow: 0 0 18px oklch(0.55 0.12 250 / 0.45);"></div>
+    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: center;">
+      <sc-for list="{{ modeChips }}" as="m" hint-placeholder-count="3">
+        <button onClick="{{ m.onClick }}" title="{{ m.label }}" style="width: 52px; border: 1px solid; border-color: {{ m.border }}; background: {{ m.bg }}; color: {{ m.fg }}; border-radius: 12px; padding: 11px 0 9px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: all 160ms ease;" style-hover="border-color: {{ m.fg }};">
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ m.dot }}; box-shadow: {{ m.dotGlow }};"></span>
+          <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;">{{ m.short }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="flex: 1;"></div>
+    <div style="font-family: Karla, sans-serif; font-size: 9px; color: oklch(0.52 0.012 265); writing-mode: vertical-rl; letter-spacing: 0.18em;">CUMULUS</div>
+  </div>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <div style="flex: 0 0 auto; padding: 16px 22px 14px; border-bottom: 1px solid oklch(0.26 0.014 265); display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: baseline; gap: 10px; min-width: 0;">
+          <span style="font-family: Karla, sans-serif; font-size: 18px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; color: {{ modeColor }};">{{ modeLabel }}</span>
+          <span style="font-family: Karla, sans-serif; font-size: 10.5px; color: oklch(0.58 0.012 265); letter-spacing: 0.04em;">{{ modeMeta }}</span>
+        </div>
+        <div style="flex: 1;"></div>
+        <div style="display: flex; gap: 4px; padding: 3px; background: oklch(0.20 0.014 265); border: 1px solid oklch(0.27 0.014 265); border-radius: 10px;">
+          <sc-for list="{{ viewTabs }}" as="t" hint-placeholder-count="5">
+            <button onClick="{{ t.onClick }}" style="border: 0; background: {{ t.bg }}; color: {{ t.fg }}; padding: 7px 13px; border-radius: 7px; cursor: pointer; font-size: 12.5px; font-weight: 500; display: flex; align-items: center; gap: 7px; transition: all 140ms ease;">
+              <span>{{ t.label }}</span>
+              <sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}">
+                <span style="font-family: Karla, sans-serif; font-size: 10px; background: {{ t.badgeBg }}; color: {{ t.badgeFg }}; border-radius: 20px; padding: 1px 6px;">{{ t.badge }}</span>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; background: oklch(0.205 0.014 265); border: 1px solid oklch(0.29 0.016 265); border-radius: 11px; padding: 0 12px 0 14px; height: 46px;">
+        <span style="font-family: Karla, sans-serif; font-size: 11px; color: {{ modeColor }}; letter-spacing: 0.04em;">&gt;</span>
+        <input value="{{ captureText }}" onChange="{{ onCaptureChange }}" onKeyDown="{{ onCaptureKey }}" placeholder="Catch a thought — Enter to drop it in the inbox" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 15px; color: oklch(0.95 0.008 265);" />
+        <span style="font-family: Karla, sans-serif; font-size: 10px; color: oklch(0.5 0.012 265);">{{ captureHint }}</span>
+        <button onClick="{{ onCaptureSubmit }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 6px 13px; font-size: 12.5px; font-weight: 500; cursor: pointer;" style-hover="background: {{ modeBorder }};">Drop</button>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-height: 0; display: flex; position: relative;">
+      <div style="flex: 1; min-width: 0; position: relative; overflow: hidden;">
+
+        <sc-if value="{{ showMap }}" hint-placeholder-val="{{ true }}">
+          <div id="cumulus-cloud" style="position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab;">
+            <div id="cumulus-stage" style="position: absolute; inset: 0; transform-origin: 0 0; transform: {{ mapTransform }};">
+            <svg id="cumulus-links" viewBox="{{ mapViewBox }}" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+              <sc-for list="{{ tethers }}" as="l" hint-placeholder-count="6">
+                <line id="{{ l.domId }}" x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}" stroke="{{ l.stroke }}" stroke-dasharray="{{ l.dash }}" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+              </sc-for>
+            </svg>
+            <div id="cumulus-hub" style="position: absolute; left: 50%; top: 50%; transform: {{ hubShift }}; width: {{ hubSize }}; height: {{ hubSize }}; border-radius: 50%; background: {{ hubGlow }}; border: 1px solid {{ hubRing }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center; padding: 0 10px; pointer-events: none;">
+              <span style="font-family: Karla, sans-serif; font-size: {{ hubFont }}; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; line-height: 1.3; color: {{ modeColor }}; text-wrap: pretty;">{{ hubLabel }}</span>
+            </div>
+            <sc-for list="{{ orbs }}" as="o" hint-placeholder-count="6">
+              <div id="{{ o.domId }}" data-orb="{{ o.id }}" style="position: absolute; left: {{ o.left }}; top: {{ o.top }}; width: {{ o.size }}; height: {{ o.size }}; border-radius: 50%; background: {{ o.glow }}; border: 1px solid {{ o.ring }}; cursor: grab; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0; animation: orbin 460ms ease both; will-change: transform;" style-hover="border-color: {{ modeColor }};">
+                <div style="pointer-events: none; display: flex; align-items: center; justify-content: center; width: {{ o.labelW }}; height: {{ o.labelW }};">
+                  <div style="font-family: Spectral, Georgia, serif; font-size: {{ o.fontSize }}; font-weight: {{ o.weight }}; line-height: 1.3; color: {{ o.fg }}; letter-spacing: 0.005em; text-align: center; display: -webkit-box; -webkit-line-clamp: {{ o.clamp }}; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty;">{{ o.label }}</div>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ memOrb }}" hint-placeholder-val="{{ false }}">
+              <div id="{{ memOrb.domId }}" data-nopan="1" onClick="{{ memOrb.onClick }}" title="Cluster memory" style="position: absolute; left: {{ memOrb.left }}; top: {{ memOrb.top }}; width: {{ memOrb.size }}; height: {{ memOrb.size }}; border-radius: 50%; border: 1px dashed {{ memOrb.ring }}; background: {{ memOrb.glow }}; box-shadow: {{ memOrb.shadow }}; cursor: pointer; display: flex; align-items: center; justify-content: center; animation: orbin 460ms ease both;" style-hover="border-color: {{ modeColor }};">
+                <div style="position: absolute; inset: 16%; border-radius: 50%; border: 1px solid {{ memOrb.innerRing }}; pointer-events: none;"></div>
+                <div style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;">
+                  <span style="font-family: Karla, sans-serif; font-size: {{ memOrb.numSize }}; font-weight: 600; line-height: 1; color: {{ memOrb.numFg }};">{{ memOrb.count }}</span>
+                  <span style="font-family: Karla, sans-serif; font-size: 7.5px; font-weight: 500; letter-spacing: 0.17em; text-transform: uppercase; color: {{ memOrb.labelFg }};">memory</span>
+                </div>
+                <sc-if value="{{ memOrb.badge }}" hint-placeholder-val="{{ false }}">
+                  <span style="position: absolute; top: 1px; right: 1px; min-width: 16px; height: 16px; border-radius: 8px; background: oklch(0.62 0.13 62); color: oklch(0.17 0.02 62); font-family: Karla, sans-serif; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; pointer-events: none;">{{ memOrb.badge }}</span>
+                </sc-if>
+              </div>
+            </sc-if>
+            </div>
+            <sc-if value="{{ newClusterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 340px; background: oklch(0.21 0.014 265); border: 1px solid oklch(0.34 0.02 265); border-radius: 14px; padding: 20px; box-shadow: 0 18px 50px oklch(0.10 0.01 265 / 0.7); z-index: 40;">
+                <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">New cluster in {{ modeLabel }}</div>
+                <input value="{{ newClusterName }}" onChange="{{ onNewClusterChange }}" onKeyDown="{{ onNewClusterKey }}" autoFocus="{{ true }}" placeholder="e.g. Camping trips" style="width: 100%; margin-top: 12px; border: 1px solid oklch(0.30 0.016 265); background: oklch(0.185 0.013 265); border-radius: 9px; padding: 11px 13px; font-size: 14px; outline: none;" />
+                <div style="display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end;">
+                  <button onClick="{{ onNewClusterCancel }}" style="border: 1px solid oklch(0.30 0.016 265); background: transparent; color: oklch(0.72 0.012 265); border-radius: 8px; padding: 8px 14px; font-size: 12.5px; cursor: pointer;" style-hover="border-color: oklch(0.5 0.02 265);">Cancel</button>
+                  <button onClick="{{ onNewClusterSave }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 500; cursor: pointer;" style-hover="background: {{ modeBorder }};">Create</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ isDrilled }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 18px; top: 16px; display: flex; align-items: center; gap: 12px; z-index: 20;">
+                <button onClick="{{ onClearCluster }}" style="border: 1px solid oklch(0.32 0.016 265); background: oklch(0.21 0.014 265); color: oklch(0.78 0.01 265); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer;" style-hover="border-color: oklch(0.5 0.02 265);">← map</button>
+                <span style="font-family: Karla, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">{{ focusedLabel }}</span>
+                <div style="display: flex; gap: 3px; padding: 3px; background: oklch(0.20 0.014 265); border: 1px solid oklch(0.28 0.014 265); border-radius: 9px;">
+                  <sc-for list="{{ viewToggle }}" as="v" hint-placeholder-count="3">
+                    <button onClick="{{ v.onClick }}" style="border: 0; background: {{ v.bg }}; color: {{ v.fg }}; border-radius: 6px; padding: 5px 11px; font-family: Karla, sans-serif; font-size: 10.5px; letter-spacing: 0.06em; cursor: pointer;">{{ v.label }}</button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="position: absolute; right: 20px; bottom: 16px; font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.07em; color: oklch(0.64 0.01 265);">inner ring = now · outer = someday</div>
+              <sc-if value="{{ memPeekOpen }}" hint-placeholder-val="{{ false }}">
+                <div data-nopan="1" style="position: absolute; right: 20px; top: 56px; width: 304px; background: oklch(0.195 0.013 265); border: 1px solid oklch(0.32 0.018 265); border-radius: 13px; padding: 13px 15px; box-shadow: 0 16px 44px oklch(0.10 0.01 265 / 0.66); z-index: 30; animation: fadein 180ms ease both;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-family: Karla, sans-serif; font-size: 9.5px; font-weight: 500; letter-spacing: 0.13em; text-transform: uppercase; color: {{ modeColor }};">memory</span>
+                    <span style="flex: 1;"></span>
+                    <button onClick="{{ onMemPeekClose }}" style="border: 0; background: transparent; color: oklch(0.56 0.012 265); cursor: pointer; font-size: 12px; line-height: 1; padding: 2px;" style-hover="color: oklch(0.9 0.01 265);">✕</button>
+                  </div>
+                  <div style="font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.05em; color: oklch(0.66 0.01 265); margin-top: 2px;">{{ memPeekMeta }}</div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 11px;">
+                    <sc-for list="{{ memPeekTypes }}" as="t" hint-placeholder-count="4">
+                      <span style="display: flex; align-items: center; gap: 5px; font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.04em; color: oklch(0.76 0.01 265);">
+                        <span style="width: 5px; height: 5px; border-radius: 50%; background: {{ t.dot }};"></span>{{ t.label }} {{ t.count }}
+                      </span>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ memPeekEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size: 12.5px; line-height: 1.45; color: oklch(0.70 0.01 265); margin-top: 10px; text-wrap: pretty;">Nothing kept here yet. Memories arrive as proposals from Claude Code.</div>
+                  </sc-if>
+                  <sc-if value="{{ memPeekHot }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: oklch(0.54 0.012 265); margin: 13px 0 8px;">most pulled</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <sc-for list="{{ memPeekHot }}" as="m" hint-placeholder-count="3">
+                        <div onClick="{{ m.onClick }}" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;" style-hover="opacity: 0.68;">
+                          <span style="width: {{ m.dotSize }}; height: {{ m.dotSize }}; border-radius: 50%; background: {{ m.dot }}; flex: 0 0 auto; margin-top: 5px;"></span>
+                          <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.35; color: oklch(0.89 0.01 265); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-wrap: pretty;">{{ m.title }}</span>
+                          <span style="font-family: Karla, sans-serif; font-size: 9.5px; color: oklch(0.58 0.012 265); flex: 0 0 auto; margin-top: 4px;">{{ m.pulls }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <div style="margin-top: 13px; padding-top: 11px; border-top: 1px solid oklch(0.27 0.012 265); display: flex; align-items: center; gap: 9px;">
+                    <sc-if value="{{ memPeekPending }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.78 0.11 62);">{{ memPeekPending }}</span>
+                    </sc-if>
+                    <span style="flex: 1;"></span>
+                    <button onClick="{{ onMemPeekOpen }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 6px 12px; font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.05em; cursor: pointer;" style-hover="background: {{ modeBorder }};">open memory →</button>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{ showNewCluster }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ onNewCluster }}" title="New cluster" style="position: absolute; right: 18px; bottom: 16px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid oklch(0.32 0.016 265); background: oklch(0.21 0.014 265); color: oklch(0.74 0.01 265); cursor: pointer; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center;" style-hover="border-color: {{ modeColor }}; color: {{ modeColor }};">+</button>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showBoard }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column; padding: 18px 22px 20px; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 14px; flex: 0 0 auto; flex-wrap: wrap; padding-right: {{ boardPadRight }};">
+              <button onClick="{{ onClearCluster }}" style="border: 1px solid oklch(0.32 0.016 265); background: oklch(0.21 0.014 265); color: oklch(0.78 0.01 265); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer;" style-hover="border-color: oklch(0.5 0.02 265);">← map</button>
+              <span style="font-family: Karla, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">{{ focusedLabel }}</span>
+              <div style="display: flex; gap: 3px; padding: 3px; background: oklch(0.20 0.014 265); border: 1px solid oklch(0.28 0.014 265); border-radius: 9px;">
+                <sc-for list="{{ viewToggle }}" as="v" hint-placeholder-count="3">
+                  <button onClick="{{ v.onClick }}" style="border: 0; background: {{ v.bg }}; color: {{ v.fg }}; border-radius: 6px; padding: 5px 11px; font-family: Karla, sans-serif; font-size: 10.5px; letter-spacing: 0.06em; cursor: pointer;">{{ v.label }}</button>
+                </sc-for>
+              </div>
+              <span style="font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.06em; color: oklch(0.66 0.01 265);">{{ boardMeta }}</span>
+            </div>
+            <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(228px, 1fr)); gap: 14px; overflow-x: auto; padding-right: {{ boardPadRight }};">
+              <sc-for list="{{ boardLists }}" as="L" hint-placeholder-count="3">
+                <div onDragOver="{{ L.onDragOver }}" onDrop="{{ L.onDrop }}" style="display: flex; flex-direction: column; min-height: 0; border: 1px solid {{ L.border }}; background: {{ L.bg }}; border-radius: 14px; overflow: hidden;">
+                  <div style="flex: 0 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 13px 15px 11px; border-bottom: 1px solid {{ L.border }};">
+                    <span style="font-family: Karla, sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: {{ L.fg }};">{{ L.label }}</span>
+                    <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.06em; color: oklch(0.66 0.01 265);">{{ L.count }}</span>
+                  </div>
+                  <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                    <sc-for list="{{ L.cards }}" as="c" hint-placeholder-count="4">
+                      <div draggable="{{ true }}" onDragStart="{{ c.onDragStart }}" onDragEnd="{{ c.onDragEnd }}" onDragOver="{{ c.onDragOver }}" onDrop="{{ c.onDrop }}" onClick="{{ c.onClick }}" style="flex: 0 0 auto; border: 1px solid {{ c.border }}; border-top: {{ c.topEdge }}; background: {{ c.bg }}; border-radius: 10px; padding: 11px 13px; cursor: grab; opacity: {{ c.opacity }}; display: flex; align-items: flex-start; gap: 9px;" style-hover="border-color: {{ c.hoverBorder }};">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; margin-top: 5px; background: {{ c.dot }};"></span>
+                        <span style="flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.35; color: {{ c.fg }}; text-wrap: pretty;">{{ c.title }}</span>
+                        <sc-if value="{{ c.badge }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-family: Karla, sans-serif; font-size: 9px; letter-spacing: 0.06em; color: oklch(0.66 0.01 265); flex: 0 0 auto; margin-top: 3px;">{{ c.badge }}</span>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                    <div onDragOver="{{ L.onDragOverTail }}" onDrop="{{ L.onDrop }}" style="flex: 1; min-height: 44px; border-radius: 10px; border: 1px dashed {{ L.tailBorder }}; display: flex; align-items: center; justify-content: center; font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(0.60 0.01 265);">{{ L.tailLabel }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showMemory }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 22px 13px;">
+              <button onClick="{{ onClearCluster }}" style="border: 1px solid oklch(0.32 0.016 265); background: oklch(0.21 0.014 265); color: oklch(0.78 0.01 265); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer;" style-hover="border-color: oklch(0.5 0.02 265);">← map</button>
+              <span style="font-family: Karla, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">{{ focusedLabel }}</span>
+              <div style="display: flex; gap: 3px; padding: 3px; background: oklch(0.20 0.014 265); border: 1px solid oklch(0.28 0.014 265); border-radius: 9px;">
+                <sc-for list="{{ viewToggle }}" as="v" hint-placeholder-count="3">
+                  <button onClick="{{ v.onClick }}" style="border: 0; background: {{ v.bg }}; color: {{ v.fg }}; border-radius: 6px; padding: 5px 11px; font-family: Karla, sans-serif; font-size: 10.5px; letter-spacing: 0.06em; cursor: pointer;">{{ v.label }}</button>
+                </sc-for>
+              </div>
+              <span style="font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.06em; color: oklch(0.66 0.01 265);">{{ memMeta }}</span>
+            </div>
+
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 22px 16px;">
+              <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 300px; min-width: 220px; height: 40px; padding: 0 11px 0 13px; border: 1px solid oklch(0.29 0.016 265); background: oklch(0.205 0.014 265); border-radius: 10px;">
+                <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">recall</span>
+                <input value="{{ memQuery }}" onChange="{{ onMemQuery }}" placeholder="Ask what the agent would pull from this cluster…" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 14px; color: oklch(0.95 0.008 265);" />
+                <sc-if value="{{ memQuery }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ onMemQueryClear }}" style="border: 0; background: transparent; color: oklch(0.58 0.012 265); cursor: pointer; font-size: 13px; line-height: 1; padding: 3px;" style-hover="color: oklch(0.9 0.01 265);">✕</button>
+                </sc-if>
+              </div>
+              <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                <sc-for list="{{ memTypeChips }}" as="t" hint-placeholder-count="5">
+                  <button onClick="{{ t.onClick }}" style="display: flex; align-items: center; gap: 6px; border: 1px solid {{ t.border }}; background: {{ t.bg }}; color: {{ t.fg }}; border-radius: 20px; padding: 6px 11px; font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;" style-hover="border-color: {{ modeBorder }};">
+                    <span>{{ t.label }}</span>
+                    <span style="opacity: 0.6;">{{ t.count }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 22px 44px;">
+              <sc-if value="{{ memPendingOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="max-width: 1040px; margin: 0 auto 26px; border: 1px dashed {{ modeBorder }}; background: oklch(0.20 0.018 265); border-radius: 14px; padding: 15px 17px;">
+                  <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 13px;">
+                    <span style="font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">{{ memPendingTitle }}</span>
+                    <span style="flex: 1;"></span>
+                    <button onClick="{{ onKeepAll }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer;" style-hover="background: {{ modeBorder }};">Keep all</button>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 9px; max-height: 268px; overflow-y: auto; padding-right: 2px;">
+                    <sc-for list="{{ memPendingItems }}" as="p" hint-placeholder-count="2">
+                      <div style="border: 1px solid oklch(0.29 0.014 265); background: oklch(0.185 0.012 265); border-radius: 11px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 13px;">
+                        <div style="flex: 1; min-width: 0;">
+                          <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 7px;">
+                            <span style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: {{ p.typeFg }}; border: 1px solid {{ p.typeBorder }}; background: {{ p.typeBg }}; border-radius: 20px; padding: 2px 8px;">{{ p.typeLabel }}</span>
+                            <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.56 0.012 265);">{{ p.when }}</span>
+                          </div>
+                          <div style="font-family: Karla, sans-serif; font-size: 14px; font-weight: 500; line-height: 1.4; text-wrap: pretty;">{{ p.title }}</div>
+                          <sc-if value="{{ p.body }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-family: Spectral, Georgia, serif; font-size: 14px; line-height: 1.6; margin-top: 5px; color: oklch(0.80 0.01 265); text-wrap: pretty;">{{ p.body }}</div>
+                          </sc-if>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex: 0 0 auto;">
+                          <button onClick="{{ p.onKeep }}" style="border: 1px solid {{ modeBorder }}; background: transparent; color: {{ modeColor }}; border-radius: 7px; padding: 6px 12px; font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.05em; cursor: pointer;" style-hover="background: {{ modeSoft }};">keep</button>
+                          <button onClick="{{ p.onDiscard }}" style="border: 1px solid oklch(0.29 0.014 265); background: transparent; color: oklch(0.62 0.012 265); border-radius: 7px; padding: 6px 12px; font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.05em; cursor: pointer;" style-hover="color: oklch(0.78 0.12 25); border-color: oklch(0.45 0.10 25);">discard</button>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <div style="position: relative; max-width: 1040px; margin: 0 auto;">
+                <div style="position: absolute; left: 50%; top: 8px; bottom: 8px; width: 1px; margin-left: -0.5px; background: linear-gradient(to bottom, transparent, {{ spineColor }} 6%, {{ spineColor }} 94%, transparent);"></div>
+                <sc-for list="{{ memEntries }}" as="e" hint-placeholder-count="4">
+                  <div style="display: flex; flex-direction: {{ e.dir }}; align-items: flex-start; margin-bottom: 16px; animation: fadein 240ms ease both;">
+                    <div style="flex: 1 1 0; min-width: 0; opacity: {{ e.dim }}; transition: opacity 180ms ease;">
+                      <div style="border: 1px solid {{ e.border }}; background: {{ e.bg }}; border-radius: 12px; padding: 13px 15px;">
+                        <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap;">
+                          <span style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: {{ e.typeFg }}; border: 1px solid {{ e.typeBorder }}; background: {{ e.typeBg }}; border-radius: 20px; padding: 2px 8px;">{{ e.typeLabel }}</span>
+                          <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.58 0.012 265);">{{ e.when }}</span>
+                          <span style="flex: 1;"></span>
+                          <sc-if value="{{ e.match }}" hint-placeholder-val="{{ false }}">
+                            <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: {{ modeColor }}; border: 1px solid {{ modeBorder }}; border-radius: 5px; padding: 1px 6px;">{{ e.match }}</span>
+                          </sc-if>
+                        </div>
+                        <div style="font-family: Karla, sans-serif; font-size: 14.5px; font-weight: 500; line-height: 1.4; margin-top: 10px; color: oklch(0.95 0.008 265); text-wrap: pretty;">{{ e.title }}</div>
+                        <sc-if value="{{ e.body }}" hint-placeholder-val="{{ true }}">
+                          <div style="font-family: Spectral, Georgia, serif; font-size: 14.5px; line-height: 1.62; margin-top: 7px; color: oklch(0.83 0.01 265); text-wrap: pretty;">{{ e.body }}</div>
+                        </sc-if>
+                        <sc-if value="{{ e.instead }}" hint-placeholder-val="{{ false }}">
+                          <div style="margin-top: 11px; border-left: 2px solid oklch(0.33 0.016 265); padding: 1px 0 1px 11px;">
+                            <div style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: oklch(0.56 0.012 265);">instead of</div>
+                            <div style="font-family: Spectral, Georgia, serif; font-size: 13.5px; line-height: 1.55; margin-top: 4px; color: oklch(0.72 0.01 265); text-wrap: pretty;">{{ e.instead }}</div>
+                          </div>
+                        </sc-if>
+                        <sc-if value="{{ e.code }}" hint-placeholder-val="{{ false }}">
+                          <pre style="margin: 11px 0 0; overflow-x: auto; border: 1px solid oklch(0.28 0.012 265); background: oklch(0.155 0.01 265); border-radius: 9px; padding: 11px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.65; color: oklch(0.84 0.02 265);">{{ e.code }}</pre>
+                        </sc-if>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+                          <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.56 0.012 265);">{{ e.author }}</span>
+                          <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: {{ e.recallFg }};">{{ e.recallText }}</span>
+                          <sc-if value="{{ e.staleHint }}" hint-placeholder-val="{{ false }}">
+                            <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.62 0.09 62);">{{ e.staleHint }}</span>
+                          </sc-if>
+                          <span style="flex: 1;"></span>
+                          <button onClick="{{ e.onArchive }}" style="border: 1px solid oklch(0.27 0.012 265); background: transparent; color: oklch(0.58 0.012 265); border-radius: 6px; padding: 4px 10px; font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.06em; cursor: pointer;" style-hover="color: oklch(0.86 0.01 265); border-color: oklch(0.42 0.02 265);">{{ e.archiveLabel }}</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="flex: 0 0 66px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 16px;">
+                      <div style="width: {{ e.dot }}; height: {{ e.dot }}; border-radius: {{ e.round }}; background: {{ e.dotBg }}; border: 1.5px solid {{ e.dotRing }}; box-shadow: {{ e.dotGlow }};"></div>
+                      <div style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.06em; color: oklch(0.54 0.012 265);">{{ e.heatLabel }}</div>
+                    </div>
+                    <div style="flex: 1 1 0; min-width: 0;"></div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ memEmpty }}" hint-placeholder-val="{{ false }}">
+                  <div style="border: 1px dashed oklch(0.29 0.014 265); border-radius: 13px; padding: 40px 22px; text-align: center; color: oklch(0.64 0.012 265); font-size: 14px; line-height: 1.55;">No memory here yet.<br />As you work this cluster with an agent, decisions and observations land on this timeline for review.</div>
+                </sc-if>
+                <sc-if value="{{ memFiltered }}" hint-placeholder-val="{{ false }}">
+                  <div style="text-align: center; color: oklch(0.60 0.012 265); font-size: 13px; padding: 20px 0;">Nothing kept yet — review the proposals above.</div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ hasArchived }}" hint-placeholder-val="{{ false }}">
+                <div style="max-width: 1040px; margin: 30px auto 0; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                  <button onClick="{{ onToggleArchived }}" style="border: 1px solid oklch(0.27 0.012 265); background: transparent; color: oklch(0.60 0.012 265); border-radius: 20px; padding: 6px 14px; font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;" style-hover="color: oklch(0.86 0.01 265); border-color: oklch(0.42 0.02 265);">{{ archivedLabel }}</button>
+                  <sc-if value="{{ showArchivedList }}" hint-placeholder-val="{{ false }}">
+                    <div style="width: 100%; display: flex; flex-direction: column; gap: 6px;">
+                      <sc-for list="{{ archivedItems }}" as="a" hint-placeholder-count="0">
+                        <div style="display: flex; align-items: center; gap: 12px; border: 1px solid oklch(0.23 0.01 265); background: oklch(0.175 0.008 265); border-radius: 10px; padding: 10px 14px;">
+                          <span style="font-family: Karla, sans-serif; font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: oklch(0.54 0.012 265); flex: 0 0 auto;">{{ a.typeLabel }}</span>
+                          <span style="flex: 1; min-width: 0; font-size: 13.5px; color: oklch(0.66 0.008 265); line-height: 1.35;">{{ a.title }}</span>
+                          <span style="font-family: Karla, sans-serif; font-size: 9.5px; color: oklch(0.52 0.01 265); letter-spacing: 0.05em; white-space: nowrap;">{{ a.when }}</span>
+                          <button onClick="{{ a.onRestore }}" style="border: 1px solid oklch(0.27 0.012 265); background: transparent; color: oklch(0.70 0.012 265); border-radius: 7px; padding: 5px 11px; font-family: Karla, sans-serif; font-size: 10px; letter-spacing: 0.05em; cursor: pointer;" style-hover="border-color: {{ modeColor }}; color: {{ modeColor }};">restore</button>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ packOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: 0 0 auto; border-top: 1px solid oklch(0.26 0.014 265); background: oklch(0.185 0.013 265); padding: 12px 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: {{ modeColor }};">context pack</span>
+                <span style="font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.04em; color: oklch(0.70 0.012 265);">{{ packMeta }}</span>
+                <span style="flex: 1;"></span>
+                <button onClick="{{ onSendPack }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 500; cursor: pointer;" style-hover="background: {{ modeBorder }};">Copy pack</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ packNone }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: 0 0 auto; border-top: 1px solid oklch(0.26 0.014 265); background: oklch(0.185 0.013 265); padding: 13px 22px; font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.04em; color: oklch(0.66 0.012 265);">Nothing in this cluster matches. The agent would come back empty.</div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isInbox }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; overflow-y: auto; padding: 38px 42px 52px;">
+            <div style="max-width: 760px;">
+              <div style="font-family: Karla, sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px;">Inbox</div>
+              <div style="font-size: 13.5px; color: oklch(0.66 0.012 265); margin-bottom: 22px; max-width: 56ch; text-wrap: pretty;">Everything you caught without deciding where it goes. File one at a time, or leave it — the pile is allowed to exist.</div>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <sc-for list="{{ inboxItems }}" as="it" hint-placeholder-count="3">
+                  <div style="border: 1px solid oklch(0.27 0.014 265); background: oklch(0.20 0.013 265); border-radius: 13px; padding: 15px 16px; animation: fadein 260ms ease both;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <div style="flex: 1; min-width: 0; font-family: Spectral, Georgia, serif; font-size: 17px; line-height: 1.5; text-wrap: pretty;">{{ it.text }}</div>
+                      <div style="font-family: Karla, sans-serif; font-size: 10px; color: oklch(0.5 0.012 265); white-space: nowrap; padding-top: 4px;">{{ it.stamp }}</div>
+                      <button onClick="{{ it.onDrop }}" title="discard" style="border: 0; background: transparent; color: oklch(0.5 0.012 265); cursor: pointer; font-size: 15px; line-height: 1; padding: 3px 2px;" style-hover="color: oklch(0.78 0.12 25);">✕</button>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; align-items: center;">
+                      <span style="font-family: Karla, sans-serif; font-size: 9.5px; color: oklch(0.5 0.012 265); letter-spacing: 0.08em; text-transform: uppercase; margin-right: 3px;">file into</span>
+                      <sc-for list="{{ it.targets }}" as="t" hint-placeholder-count="4">
+                        <button onClick="{{ t.onClick }}" style="border: 1px solid {{ t.border }}; background: {{ t.bg }}; color: {{ t.fg }}; border-radius: 20px; padding: 5px 11px; font-size: 12px; cursor: pointer;" style-hover="background: {{ t.border }};">{{ t.label }}</button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ inboxEmpty }}" hint-placeholder-val="{{ false }}">
+                  <div style="border: 1px dashed oklch(0.29 0.014 265); border-radius: 13px; padding: 34px 20px; text-align: center; color: oklch(0.6 0.012 265); font-size: 14px;">Inbox clear. Nothing waiting on a decision.</div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isFocus }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; overflow-y: auto; padding: 38px 42px 52px;">
+            <div style="max-width: 780px;">
+              <div style="margin-bottom: 22px;">
+                <div style="font-family: Karla, sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;">Focus block</div>
+                <div style="font-size: 13.5px; color: oklch(0.66 0.012 265); margin-top: 4px;">{{ focusSubtitle }}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px;">
+                <sc-for list="{{ focusQueue }}" as="q" hint-placeholder-count="3">
+                  <div draggable="{{ true }}" onDragStart="{{ q.onDragStart }}" onDragEnd="{{ q.onDragEnd }}" onDragOver="{{ q.onDragOver }}" onDrop="{{ q.onDrop }}" style="display: flex; align-items: center; gap: 13px; border: 1px solid {{ q.border }}; border-top: {{ q.topEdge }}; background: {{ q.bg }}; border-radius: 12px; padding: 13px 15px; cursor: grab; opacity: {{ q.opacity }};" style-hover="border-color: {{ modeBorder }};">
+                    <span style="font-family: Karla, sans-serif; font-size: 11px; color: oklch(0.56 0.012 265); width: 26px; letter-spacing: 0.06em;">{{ q.num }}</span>
+                    <button onClick="{{ q.onClose }}" title="Mark done and close" style="width: 21px; height: 21px; flex: 0 0 auto; border-radius: 50%; border: 1.5px solid oklch(0.42 0.02 265); background: transparent; cursor: pointer;" style-hover="border-color: {{ modeColor }}; background: {{ modeSoft }};"></button>
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="font-size: 15px; color: oklch(0.94 0.01 265); line-height: 1.3;">{{ q.title }}</div>
+                      <div style="font-family: Karla, sans-serif; font-size: 10px; color: oklch(0.62 0.012 265); margin-top: 4px; letter-spacing: 0.05em;">{{ q.cluster }}</div>
+                    </div>
+                    <button onClick="{{ q.onRemove }}" title="Remove from this block" style="border: 1px solid oklch(0.29 0.014 265); background: transparent; color: oklch(0.62 0.012 265); border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: 11px;" style-hover="color: oklch(0.78 0.12 25);">✕</button>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ focusEmpty }}" hint-placeholder-val="{{ false }}">
+                  <div style="border: 1px dashed oklch(0.29 0.014 265); border-radius: 13px; padding: 34px 20px; text-align: center; color: oklch(0.66 0.012 265); font-size: 14px; line-height: 1.5;">Nothing queued.<br />Open a cluster, pick a card, and send it here.</div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ hasClosed }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 40px;">
+                  <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;">
+                    <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(0.62 0.012 265);">Recently closed</span>
+                    <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.05em; color: oklch(0.52 0.012 265);">{{ closedMeta }}</span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <sc-for list="{{ closedItems }}" as="c" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: center; gap: 12px; border: 1px solid oklch(0.24 0.01 265); border-radius: 10px; padding: 10px 13px; background: oklch(0.18 0.008 265);">
+                        <span style="width: 15px; height: 15px; flex: 0 0 auto; border-radius: 50%; background: {{ closedDot }}; color: oklch(0.16 0.01 265); font-size: 9px; line-height: 15px; text-align: center;">✓</span>
+                        <span style="flex: 1; min-width: 0; font-size: 14px; color: oklch(0.68 0.008 265); text-decoration: line-through; line-height: 1.3;">{{ c.title }}</span>
+                        <span style="font-family: Karla, sans-serif; font-size: 9.5px; color: oklch(0.58 0.01 265); letter-spacing: 0.05em; white-space: nowrap;">{{ c.when }}</span>
+                        <button onClick="{{ c.onReopen }}" style="border: 1px solid oklch(0.29 0.014 265); background: transparent; color: oklch(0.74 0.012 265); border-radius: 7px; padding: 5px 11px; font-family: Karla, sans-serif; font-size: 10.5px; letter-spacing: 0.05em; cursor: pointer;" style-hover="border-color: {{ modeColor }}; color: {{ modeColor }};">re-open</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isJournal }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; display: flex;">
+            <div style="width: 188px; flex: 0 0 188px; border-right: 1px solid oklch(0.26 0.014 265); overflow-y: auto; padding: 20px 12px;">
+              <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(0.52 0.012 265); padding: 0 8px 10px;">Daily notes</div>
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <sc-for list="{{ journalDays }}" as="d" hint-placeholder-count="4">
+                  <button onClick="{{ d.onClick }}" style="text-align: left; border: 0; background: {{ d.bg }}; color: {{ d.fg }}; border-radius: 8px; padding: 9px 10px; cursor: pointer; font-family: Karla, sans-serif; font-size: 11.5px; letter-spacing: 0.02em; display: flex; justify-content: space-between; gap: 8px;" style-hover="background: oklch(0.235 0.014 265);">
+                    <span>{{ d.label }}</span>
+                    <span style="color: oklch(0.5 0.012 265); font-size: 10px;">{{ d.words }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 34px 40px 20px;">
+              <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px;">
+                <div style="font-family: Karla, sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;">{{ journalTitle }}</div>
+                <div style="font-family: Karla, sans-serif; font-size: 10px; color: oklch(0.52 0.012 265); letter-spacing: 0.05em;">{{ journalMeta }}</div>
+              </div>
+              <textarea value="{{ journalText }}" onChange="{{ onJournalChange }}" placeholder="Markdown. Mention a topic with [[double brackets]] and it links into the cloud." style="flex: 1; min-height: 220px; width: 100%; border: 1px solid oklch(0.27 0.014 265); background: oklch(0.185 0.013 265); border-radius: 12px; padding: 28px 32px; font-family: Spectral, Georgia, serif; font-size: 17px; line-height: 1.72; outline: none;"></textarea>
+              <div style="display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; align-items: center;">
+                <span style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: oklch(0.52 0.012 265);">links out</span>
+                <sc-for list="{{ journalLinks }}" as="k" hint-placeholder-count="0">
+                  <button onClick="{{ k.onClick }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 20px; padding: 4px 11px; font-size: 12px; cursor: pointer; font-family: Karla, sans-serif;" style-hover="background: {{ modeBorder }};">{{ k.label }}</button>
+                </sc-for>
+                <sc-if value="{{ noJournalLinks }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size: 12px; color: oklch(0.55 0.012 265);">none yet</span>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; right: 0; top: 0; bottom: 0; width: 356px; z-index: 30; border-left: 1px solid oklch(0.26 0.014 265); background: oklch(0.185 0.013 265); box-shadow: -18px 0 44px oklch(0.10 0.008 265 / 0.55); display: flex; flex-direction: column; animation: fadein 200ms ease both;">
+          <div style="padding: 20px 20px 16px; border-bottom: 1px solid oklch(0.25 0.014 265);">
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: {{ modeColor }};">{{ selKind }}</div>
+                <div style="font-family: Karla, sans-serif; font-size: 15.5px; font-weight: 500; line-height: 1.4; margin-top: 9px; text-wrap: pretty;">{{ selTitle }}</div>
+                <div style="font-family: Karla, sans-serif; font-size: 10px; color: oklch(0.55 0.012 265); margin-top: 7px; letter-spacing: 0.04em;">{{ selPath }}</div>
+              </div>
+              <button onClick="{{ onCloseSel }}" style="border: 0; background: transparent; color: oklch(0.55 0.012 265); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px;" style-hover="color: oklch(0.9 0.01 265);">✕</button>
+            </div>
+            <div style="display: flex; gap: 7px; margin-top: 15px; flex-wrap: wrap;">
+              <button onClick="{{ onQueue }}" style="border: 1px solid {{ modeBorder }}; background: {{ modeSoft }}; color: {{ modeColor }}; border-radius: 8px; padding: 7px 13px; font-size: 12.5px; font-weight: 500; cursor: pointer;" style-hover="background: {{ modeBorder }};">{{ queueLabel }}</button>
+            </div>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 24px;">
+            <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: oklch(0.52 0.012 265); margin-bottom: 8px;">Priority</div>
+            <div style="display: flex; gap: 6px; margin-bottom: 22px;">
+              <sc-for list="{{ selTiers }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.onClick }}" style="flex: 1; border: 1px solid {{ t.border }}; background: {{ t.bg }}; color: {{ t.fg }}; border-radius: 8px; padding: 8px 6px; font-family: Karla, sans-serif; font-size: 11px; letter-spacing: 0.05em; cursor: pointer;" style-hover="border-color: {{ modeColor }};">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: oklch(0.52 0.012 265); margin-bottom: 8px;">What the model should know</div>
+            <textarea value="{{ selSummary }}" onChange="{{ onSummaryChange }}" placeholder="One paragraph of durable context for this node." style="width: 100%; min-height: 96px; border: 1px solid oklch(0.28 0.014 265); background: oklch(0.205 0.014 265); border-radius: 10px; padding: 13px 14px; font-size: 15px; line-height: 1.6; outline: none; font-family: Spectral, Georgia, serif;"></textarea>
+            <div style="font-family: Karla, sans-serif; font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: oklch(0.52 0.012 265); margin: 22px 0 10px;">Thread</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <sc-for list="{{ selNotes }}" as="n" hint-placeholder-count="2">
+                <div style="border-left: 2px solid {{ modeBorder }}; padding: 2px 0 2px 12px;">
+                  <div style="font-family: Karla, sans-serif; font-size: 9.5px; color: oklch(0.52 0.012 265); letter-spacing: 0.05em;">{{ n.date }}</div>
+                  <div style="font-family: Spectral, Georgia, serif; font-size: 15px; line-height: 1.6; margin-top: 5px; color: oklch(0.89 0.01 265); text-wrap: pretty;">{{ n.text }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ selNoNotes }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size: 13px; color: oklch(0.58 0.012 265);">No entries yet.</div>
+              </sc-if>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 14px;">
+              <input value="{{ noteDraft }}" onChange="{{ onNoteDraftChange }}" onKeyDown="{{ onNoteKey }}" placeholder="Add to the thread…" style="flex: 1; min-width: 0; border: 1px solid oklch(0.28 0.014 265); background: oklch(0.205 0.014 265); border-radius: 9px; padding: 9px 12px; font-size: 13px; outline: none;" />
+              <button onClick="{{ onAddNote }}" style="border: 1px solid oklch(0.3 0.016 265); background: transparent; color: oklch(0.78 0.012 265); border-radius: 9px; padding: 9px 12px; font-size: 13px; cursor: pointer;" style-hover="border-color: oklch(0.5 0.02 265);">Add</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: oklch(0.24 0.016 265); border: 1px solid oklch(0.34 0.02 265); color: oklch(0.93 0.01 265); border-radius: 10px; padding: 11px 18px; font-size: 13px; box-shadow: 0 10px 30px oklch(0.1 0.01 265 / 0.6); animation: fadein 180ms ease both; z-index: 50;">{{ toast }}</div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;linkLines&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Map&quot;},&quot;floatSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Map&quot;},&quot;startView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cloud&quot;,&quot;inbox&quot;,&quot;focus&quot;,&quot;journal&quot;],&quot;default&quot;:&quot;cloud&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;heatVisual&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Memory&quot;},&quot;packSize&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:5,&quot;min&quot;:3,&quot;max&quot;:8,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Memory&quot;}}">
+const HUE = { personal: 155, work: 250, church: 65 };
+const MODES = [
+  { id: 'personal', label: 'Personal', short: 'PER' },
+  { id: 'work', label: 'Work', short: 'WRK' },
+  { id: 'church', label: 'Church', short: 'CHR' }
+];
+const VIEWS = [
+  { id: 'cloud', label: 'Cloud' },
+  { id: 'inbox', label: 'Inbox' },
+  { id: 'focus', label: 'Focus' },
+  { id: 'journal', label: 'Journal' }
+];
+
+const TIERS = [{ id: 1, label: 'Now' }, { id: 2, label: 'Next' }, { id: 3, label: 'Someday' }];
+
+function P(cluster, spec) {
+  return spec.map(function (s, i) {
+    const parts = s.split('|');
+    return { id: cluster + '-' + i, cluster: cluster, title: parts[0], p: Number(parts[1]) || 2, kind: parts[2] || 'task', summary: '', notes: [] };
+  });
+}
+
+const SEED = {
+  personal: {
+    clusters: [
+      { id: 'books', label: 'Books to read' },
+      { id: 'screen', label: 'Movies & shows' },
+      { id: 'indoor', label: 'Indoor projects' },
+      { id: 'outdoor', label: 'Outdoor projects' },
+      { id: 'goals', label: 'Big goals' },
+      { id: 'guitar', label: 'Guitar songs' }
+    ],
+    nodes: [].concat(
+      P('books', ['The Power Broker|1', 'Piranesi|2', 'Thinking in Systems|1', 'Annals of the Former World|3', 'The Dawn of Everything|3', 'Deep Work|2', 'Seeing Like a State|3', 'The Making of the Atomic Bomb|3', 'A Pattern Language|2', 'Braiding Sweetgrass|2', 'The Overstory|2', 'Working in Public|2', 'The Goal|3', 'Shop Class as Soulcraft|3']),
+      P('screen', ['Andor S2|1', 'Perfect Days|2', 'Shogun|2', 'Severance S2|1', 'Chernobyl|2', 'Slow Horses|3', 'Dune Part Two|2', 'The Rehearsal|3', 'Past Lives|2', 'Totoro with the kids|2', 'Arrival (rewatch)|3', 'The Bear S4|3']),
+      P('indoor', ['Refinish the stair treads|1', 'Replace hallway sconces|2', 'Insulate the attic hatch|1', 'Build closet shelving|2', 'Swap the furnace filter|1', 'Re-caulk the guest tub|2', 'Fix the sticking pocket door|2', 'Label the breaker panel|2', 'Mount the bookshelf brackets|2', 'Patch drywall in the garage|3', 'Paint the mudroom|3', 'Install an office dimmer|3', 'Deep clean the range hood|3', 'Smoke detector batteries|1']),
+      P('outdoor', ['Regrade side-yard drainage|1', 'Plant fall garlic|1', 'Clean the gutters|1', 'Rebuild the fence gate|2', 'Prune the apple tree|2', 'Stack and cover firewood|2', 'Winterize the spigots|2', 'Fix sprinkler zone 3 head|2', 'Reseed the bare patch|3', 'Seal the deck boards|3', 'Build a compost bin|3', 'Edge the front beds|3', 'Trim back the hedge|3']),
+      P('goals', ['Learn Spanish|1|topic', 'Scuba certification|1|topic', 'Sabbath one full day a week|1|topic', 'Run a half marathon|2|topic', 'Read 30 books this year|2|topic', 'Build a woodworking bench|2|topic', 'Write the kids yearly letters|2|topic', 'Learn to weld|3|topic', 'Learn basic sourdough|3|topic', 'Get comfortable ice skating|3|topic']),
+      P('guitar', ['Blackbird|1', 'Wish You Were Here|1', "Ain't No Sunshine|1", 'Little Wing|2', 'Norwegian Wood|2', 'Hallelujah|2', 'Dust in the Wind|2', 'Fast Car|2', 'Julia|2', 'Neon|3', "Cause We've Ended as Lovers|3", 'Landslide|3'])
+    ),
+    journal: {
+      '2026-09-08': 'Woke up with the stair-tread plan mostly solved. Sand to 120, water-pop, then two coats.\n\nSpanish tutor at 7. Ask about [[Learn Spanish]] listening drills.\n\nGarlic needs to go in before first frost.',
+      '2026-09-05': 'Quarry has one open slot the 18th. Would finish [[Scuba certification]] before it gets cold.',
+      '2026-09-02': 'Finished the Moses chapter. The scale of it is hard to hold in your head.'
+    }
+  },
+  work: {
+    clusters: [
+      { id: 'ship', label: 'Shipping now' },
+      { id: 'think', label: 'Thinking about' },
+      { id: 'people', label: 'People & 1:1s' },
+      { id: 'admin', label: 'Admin' },
+      { id: 'bc', label: 'Business continuity' }
+    ],
+    nodes: [].concat(
+      P('ship', ['Auth migration|1|topic', 'Billing retry logic|1', 'Token rotation grace window|1', 'Tenant flag rollout to 40%|1', 'On-call runbook refresh|2', 'Legacy cookie removal plan|2', 'Mobile cold-start telemetry|2', 'Session revocation endpoint|2', 'Backfill audit log gaps|2', 'Load test the refresh path|2', 'Error budget dashboard|3', 'Deprecate /v1/session|3', 'Rate limit tuning|3']),
+      P('think', ['Pricing model v3|1|topic', 'Latency budget|2', 'Team topology for Q4|2', 'What breaks at 10x tenants|2', 'Time-to-first-call|2', 'Incident review cadence|2', 'Multi-region story|3|topic', 'Build vs buy: search|3', 'Sunset plan for the old SDK|3', 'Cost per tenant model|3']),
+      P('people', ['Dana — growth plan|1', 'New hire onboarding|1', 'Marcus — scope clarity|2', 'Priya — promo packet|2', 'Hiring loop calibration|2', 'Feedback for Sam|2', 'Recognition for the auth crew|2', 'Skip-levels this month|3', 'Team offsite agenda|3', 'Interview debrief backlog|3', '1:1 question bank|3']),
+      P('admin', ['Q3 review packet|1', 'Expense report|1', 'Compliance training|2', 'Budget forecast input|2', 'Headcount plan draft|2', 'Book Q4 travel|2', 'Vendor renewal: log tooling|3', 'Update the team charter|3', 'Archive old Jira epics|3', 'Refresh onboarding checklist|3']),
+      P('bc', ['Runbook v3 review|1', 'Game day: gradebook reads|1', 'Name the failover decision owner|1', 'DNS pre-warm automation|2', 'Standby capacity plan|2', 'Tabletop with support leads|2', 'Quarterly game-day cadence|3', 'Rewrite the SLA doc|3'])
+    ),
+    journal: {
+      '2026-09-08': 'Standup: [[Auth migration]] flag at 18%. Watch the mobile cold-start numbers today.\n\nPricing sync moved to Thursday.',
+      '2026-09-04': 'Cold-start bug traced to clock skew on the device, not the server. Grace window is the right fix.'
+    }
+  },
+  church: {
+    clusters: [
+      { id: 'teach', label: 'Teaching prep' },
+      { id: 'serve', label: 'Service' },
+      { id: 'care', label: 'Check in on' }
+    ],
+    nodes: [].concat(
+      P('teach', ['Sunday lesson — Ruth|1|topic', 'Youth class outline|1', 'Week 2: the threshing floor|1', 'Week 3: redemption law|2', 'Week 4: Obed and lineage|2', 'Handout: covenant loyalty|2', 'Questions for discussion|2', 'Rework the opening story|2', 'Read Hubbard commentary|3', 'Find a map of Moab|3', 'Music pairing for week 4|3', 'Follow-up reading list|3']),
+      P('serve', ['Food pantry Saturday|1', 'Ride schedule|1', 'Move help for the Nguyens|1', 'Shelf-stable protein drive|2', 'Winter coat collection|2', 'Yard cleanup for Sister Ann|2', 'Meal train coordination|2', 'Update the service calendar|2', 'Blood drive sign-ups|3', 'Repair the pantry shelving|3', 'Volunteer thank-you notes|3']),
+      P('care', ['The Alvarez family|1', 'Brother Kim|1', 'Sister Ann after surgery|1', 'The Nguyens (new baby)|2', 'Check on Dale|2', 'Visit the Ramirez home|2', 'Youth who stopped coming|2', 'Call Brother Ellis|3', 'Widows list — monthly|3', 'Hospital visit rotation|3'])
+    ),
+    journal: {
+      '2026-09-07': 'Taught week one of [[Sunday lesson — Ruth]]. Ran four minutes long. Cut the intro next time.',
+      '2026-09-03': 'Pantry is short on shelf-stable protein. Ask the group Sunday.'
+    }
+  }
+};
+
+const DETAIL = {
+  'goals-0': {
+    summary: 'Target: hold a 20-minute unscripted conversation by next summer. Currently ~A2. Anki daily, weekly tutor on Tuesdays. Weakest area is past-tense conjugation and listening speed.',
+    notes: [{ date: '2026-08-24', text: 'Anki streak: 41 days. Mature cards 620.' }, { date: '2026-09-01', text: 'Tutor said to stop translating in my head and start narrating chores out loud.' }]
+  },
+  'goals-1': {
+    summary: 'Open Water cert. Classroom done, pool sessions remaining, then four open-water dives. Quarry window closes late October.',
+    notes: [{ date: '2026-09-05', text: 'One open slot on the 18th.' }]
+  },
+  'books-0': { notes: [{ date: '2026-08-19', text: 'Made it through the Long Island parkway chapters. Slow but worth it.' }] },
+  'indoor-0': { notes: [{ date: '2026-08-30', text: 'Belt sander rental is $34/day. Need 80/120/220 grit.' }] },
+  'ship-0': {
+    summary: 'Moving session auth to short-lived tokens with refresh rotation. Two services still read the legacy cookie. Rollout is behind a per-tenant flag; 18% of tenants migrated.',
+    notes: [{ date: '2026-08-28', text: 'Decision: keep the legacy cookie readable until Q4, then hard-remove.' }, { date: '2026-09-04', text: 'Refresh rotation broke the mobile client on cold start. Added a 30s grace window.' }]
+  },
+  'teach-0': {
+    summary: 'Four-week arc on covenant loyalty. Week two is the threshing floor; handle it plainly and without euphemism.',
+    notes: [{ date: '2026-09-06', text: 'Open with the famine, not the genealogy. People need the stakes first.' }]
+  },
+  'care-0': { notes: [{ date: '2026-09-01', text: 'Second week without a car. Offered Tuesday rides.' }] }
+};
+
+Object.keys(SEED).forEach(function (m) {
+  SEED[m].nodes.forEach(function (nd) {
+    const d = DETAIL[nd.id];
+    if (d) { nd.summary = d.summary || ''; nd.notes = d.notes || []; }
+  });
+});
+
+const SEED_INBOX = [
+  { id: 'i1', text: 'Ask the neighbor what he used to seal his deck', stamp: '9:14a' },
+  { id: 'i2', text: 'Idea: one-page diagram of the token refresh flow for the runbook', stamp: '8:02a' },
+  { id: 'i3', text: 'Check whether the guitar needs a new nut or just a setup', stamp: 'yesterday' }
+];
+
+const MEM_TYPES = [
+  { id: 'decision', label: 'Decision' },
+  { id: 'log', label: 'Log' },
+  { id: 'observation', label: 'Read' },
+  { id: 'question', label: 'Open' },
+  { id: 'snippet', label: 'Snippet' }
+];
+
+function D(iso) {
+  const p = iso.split('-');
+  return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 9, 30).getTime();
+}
+
+const MEM = [
+  { id: 'm1', mode: 'work', cluster: 'bc', type: 'decision', d: '2026-08-06', recall: 31, author: 'claude',
+    title: 'Tier-1 RTO is 4 hours, RPO 15 minutes',
+    body: 'Agreed with SRE and legal after the risk workshop. Tier-1 covers login, course access, and gradebook reads. Everything else is tier-2 at 24 hours.',
+    instead: 'A 1-hour RTO (needed active-active, roughly 3x the cost) and a 24-hour RTO (unacceptable for an institution mid-term).' },
+  { id: 'm2', mode: 'work', cluster: 'bc', type: 'decision', d: '2026-08-13', recall: 24, author: 'claude',
+    title: 'Warm standby in a second region, not active-active',
+    body: 'Standby carries replicated data and a scaled-down service footprint. Promotion is a deliberate runbook step with a named owner, not an automatic failover.',
+    instead: 'Active-active (write consistency cost, and we could not justify it against the 4-hour RTO) and cold restore from backups (measured well past 4 hours).' },
+  { id: 'm3', mode: 'work', cluster: 'bc', type: 'log', d: '2026-08-20', recall: 9, author: 'claude',
+    title: 'First failover game day: reporting service',
+    body: 'Promoted the standby in staging. 38 minutes end to end, 11 of which were DNS propagation. Two runbook steps were wrong and one was missing entirely.' },
+  { id: 'm4', mode: 'work', cluster: 'bc', type: 'observation', d: '2026-08-21', recall: 17, author: 'claude',
+    title: 'Runbooks are the bottleneck, not the infrastructure',
+    body: 'Every game-day delay so far traced to a stale or ambiguous runbook step, never to the platform. Worth weighting the remaining schedule toward runbook work.' },
+  { id: 'm5', mode: 'work', cluster: 'bc', type: 'question', d: '2026-08-27', recall: 12, author: 'me',
+    title: 'Who has authority to call a failover at 2am?',
+    body: 'Needs a named on-call role with standing authority, not an escalation chain. Still open with leadership.' },
+  { id: 'm6', mode: 'work', cluster: 'bc', type: 'snippet', d: '2026-09-01', recall: 6, author: 'claude',
+    title: 'Health gate the promotion script checks before cutover',
+    body: 'All three must pass twice, 30s apart, or the script refuses to promote.',
+    code: 'replication_lag_seconds < 900\nstandby_pool_ready_pct   > 80\nlast_snapshot_age_min    < 20' },
+  { id: 'm7', mode: 'work', cluster: 'bc', type: 'log', d: '2026-09-03', recall: 4, author: 'claude',
+    title: 'Runbook v2 merged, DNS pre-warm step added',
+    body: 'Pre-warm drops the propagation window from 11 minutes to about 3 in staging.' },
+  { id: 'm8', mode: 'work', cluster: 'bc', type: 'observation', d: '2026-09-05', recall: 2, author: 'claude',
+    title: 'Institutions ask about term boundaries, not annual uptime',
+    body: 'Two customer calls in a row framed continuity around finals week and the add/drop window. The SLA doc should be organized around the academic calendar.' },
+  { id: 'm9', mode: 'work', cluster: 'bc', type: 'decision', d: '2026-09-08', recall: 0, author: 'claude', status: 'pending',
+    title: 'Drop the multi-region search index from scope',
+    body: 'Degraded search during a failover was accepted in the risk workshop. Keeping the index in scope adds about two weeks.' },
+  { id: 'm10', mode: 'work', cluster: 'bc', type: 'log', d: '2026-09-09', recall: 0, author: 'claude', status: 'pending',
+    title: 'Promotion path held at 2.1x expected peak',
+    body: 'Load test finished clean. Connection pool saturated first, at 2.4x.' },
+  { id: 'm11', mode: 'work', cluster: 'bc', type: 'question', d: '2026-09-09', recall: 0, author: 'claude', status: 'pending',
+    title: 'Is the 15-minute RPO measured at commit or at replication ack?',
+    body: 'The two readings differ by roughly 40 seconds under load. Affects what we can promise in writing.' },
+  { id: 'm12', mode: 'work', cluster: 'bc', type: 'decision', d: '2026-06-18', recall: 0, author: 'me', status: 'archived',
+    title: 'Evaluate three DR vendors before building anything',
+    body: 'Superseded by the in-house warm standby decision after the August risk workshop.' },
+  { id: 'm13', mode: 'work', cluster: 'ship', type: 'decision', d: '2026-08-28', recall: 19, author: 'claude',
+    title: 'Legacy cookie stays readable until Q4, then hard-removed',
+    body: 'Two services still read it. Removing early would strand tenants that have not migrated.',
+    instead: 'Immediate removal behind a compatibility shim, which nobody wanted to own.' },
+  { id: 'm14', mode: 'work', cluster: 'ship', type: 'log', d: '2026-09-08', recall: 5, author: 'claude',
+    title: 'Auth migration flag at 18% of tenants',
+    body: 'Mobile cold-start error rate is flat since the 30s grace window landed.' },
+  { id: 'm15', mode: 'personal', cluster: 'indoor', type: 'observation', d: '2026-08-30', recall: 2, author: 'me',
+    title: 'Water-popping the treads is worth the extra day',
+    body: 'The test board took stain far more evenly after a damp wipe and full dry. Do all of them this way.' },
+  { id: 'm16', mode: 'church', cluster: 'teach', type: 'decision', d: '2026-09-06', recall: 3, author: 'me',
+    title: 'Open week two with the famine, not the genealogy',
+    body: 'People need the stakes before the names. Genealogy moves to the last five minutes of week four.',
+    instead: 'Opening with lineage, which is how the text is ordered but not how attention works.' }
+];
+
+const STOP = { the: 1, and: 1, for: 1, with: 1, that: 1, this: 1, what: 1, are: 1, was: 1, our: 1, from: 1, did: 1, how: 1, why: 1, who: 1, does: 1, about: 1, have: 1, has: 1, will: 1, can: 1, any: 1, all: 1, get: 1, out: 1, not: 1, but: 1 };
+
+function toks(s) {
+  return String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP[w]);
+}
+function simScore(q, m) {
+  const qs = toks(q);
+  if (!qs.length) return 0;
+  const body = toks(m.title + ' ' + m.body + ' ' + (m.instead || '') + ' ' + (m.code || '') + ' ' + m.type);
+  const set = {};
+  body.forEach(w => { set[w] = 1; });
+  let hit = 0;
+  qs.forEach(w => {
+    if (set[w]) hit += 1;
+    else if (body.some(x => x.indexOf(w) === 0 || (w.length > 4 && w.indexOf(x) === 0))) hit += 0.6;
+  });
+  return Math.min(1, hit / qs.length);
+}
+
+const KEY = 'cumulus.state.v3';
+const PILL_MAX = 210;
+const PAD_T = 58;
+const PAD_B = 34;
+
+function hash01(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 10000) / 10000;
+}
+function pad(x) { return x < 10 ? '0' + x : '' + x; }
+function ago(ts) {
+  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.round(hrs / 24) + 'd ago';
+}
+function fmtDay(iso) {
+  const parts = iso.split('-');
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+  return mo + ' ' + d.getDate();
+}
+
+class Component extends DCLogic {
+  state = {
+    mode: 'personal',
+    view: 'cloud',
+    data: SEED,
+    inbox: SEED_INBOX,
+    focus: [],
+    selected: null,
+    focusedCluster: null,
+    capture: '',
+    noteDraft: '',
+    newCluster: null,
+    fitPending: false,
+    journalDay: '2026-09-08',
+    dragId: null,
+    dragOver: null,
+    clusterView: 'cloud',
+    memPeek: false,
+    mapZoom: 1,
+    mapPanX: 0,
+    mapPanY: 0,
+    closed: [],
+    focusDragId: null,
+    focusDragOver: null,
+    toast: '',
+    memories: MEM,
+    memQuery: '',
+    memType: null,
+    memArchivedOpen: false,
+  };
+
+  componentDidMount() {
+    this.measure();
+    this.onResize = () => this.measure();
+    window.addEventListener('resize', this.onResize);
+    const el = document.getElementById('cumulus-cloud');
+    if (window.ResizeObserver && el) {
+      this.ro = new ResizeObserver(() => this.measure());
+      this.ro.observe(el);
+    }
+    this.syncMap();
+    setTimeout(() => { this.measure(); this.syncMap(); }, 120);
+    try {
+      const raw = window.localStorage.getItem(KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && saved.data) {
+          if (Array.isArray(saved.focus)) saved.focus = saved.focus.map(x => ({ id: x.id }));
+          if (!Array.isArray(saved.closed)) saved.closed = [];
+          if (!VIEWS.some(v => v.id === saved.view)) saved.view = 'cloud';
+          if (['cards', 'memory'].indexOf(saved.clusterView) < 0) saved.clusterView = 'cloud';
+          if (!Array.isArray(saved.memories) || !saved.memories.length) saved.memories = MEM;
+          Object.keys(SEED).forEach(function (mk) {
+            const tgt = saved.data[mk];
+            if (!tgt) { saved.data[mk] = JSON.parse(JSON.stringify(SEED[mk])); return; }
+            SEED[mk].clusters.forEach(function (cl) {
+              if (!tgt.clusters.some(x => x.id === cl.id)) {
+                tgt.clusters.push(JSON.parse(JSON.stringify(cl)));
+                SEED[mk].nodes.filter(n => n.cluster === cl.id).forEach(n => tgt.nodes.push(JSON.parse(JSON.stringify(n))));
+              }
+            });
+          });
+          this.setState(saved, () => this.persist());
+        }
+      }
+    } catch (e) { /* first run */ }
+    if (this.props.startView) this.setState({ view: this.props.startView });
+  }
+  componentWillUnmount() {
+    if (this.toastT) clearTimeout(this.toastT);
+    if (this.onResize) window.removeEventListener('resize', this.onResize);
+    if (this.ro) this.ro.disconnect();
+    this.stopSim();
+  }
+  componentDidUpdate() {
+    this.measure();
+    this.syncMap();
+  }
+
+  syncMap() {
+    const live = this.state.view === 'cloud' && (!this.state.focusedCluster || (this.state.clusterView || 'cloud') === 'cloud');
+    if (!live) { this.stopSim(); return; }
+    if (!this.sim || this.sim.key !== this.simKey()) this.initSim();
+    this.attachMap();
+    this.startSim();
+  }
+
+  persist() {
+    try {
+      const s = this.state;
+      window.localStorage.setItem(KEY, JSON.stringify({
+        mode: s.mode, view: s.view, data: s.data, inbox: s.inbox, focus: s.focus, closed: s.closed,
+        journalDay: s.journalDay, clusterView: s.clusterView, memories: s.memories
+      }));
+    } catch (e) { /* ignore */ }
+  }
+  set(patch) { this.setState(patch, () => this.persist()); }
+  flash(msg) {
+    this.setState({ toast: msg });
+    if (this.toastT) clearTimeout(this.toastT);
+    this.toastT = setTimeout(() => this.setState({ toast: '' }), 2200);
+  }
+
+  hue() { return HUE[this.state.mode]; }
+  c(l, ch) { return 'oklch(' + l + ' ' + ch + ' ' + this.hue() + ')'; }
+  bank() { return this.state.data[this.state.mode]; }
+  nodeById(id) {
+    const d = this.state.data;
+    for (const k in d) { const f = d[k].nodes.find(x => x.id === id); if (f) return { node: f, mode: k }; }
+    return null;
+  }
+  clusterLabel(mode, cid) {
+    const c = this.state.data[mode].clusters.find(x => x.id === cid);
+    return c ? c.label : cid;
+  }
+
+  mutateNode(id, fn) {
+    const data = JSON.parse(JSON.stringify(this.state.data));
+    for (const k in data) {
+      const t = data[k].nodes.find(x => x.id === id);
+      if (t) { fn(t); break; }
+    }
+    this.set({ data: data });
+  }
+
+  addCapture() {
+    const text = this.state.capture.trim();
+    if (!text) return;
+    const d = new Date();
+    const item = { id: 'i' + Date.now(), text: text, stamp: (d.getHours() % 12 || 12) + ':' + pad(d.getMinutes()) + (d.getHours() < 12 ? 'a' : 'p') };
+    this.setState(s => ({ inbox: [item].concat(s.inbox), capture: '' }), () => { this.persist(); this.flash('Caught. It is in the Inbox.'); });
+  }
+
+  fileItem(item, clusterId) {
+    const data = JSON.parse(JSON.stringify(this.state.data));
+    const mode = this.state.mode;
+    const id = 'n' + Date.now();
+    data[mode].nodes.push({ id: id, cluster: clusterId, title: item.text, kind: 'task', p: 2, summary: '', notes: [] });
+    this.setState(s => ({ data: data, inbox: s.inbox.filter(x => x.id !== item.id) }), () => {
+      this.persist();
+      this.flash('Filed into ' + this.clusterLabel(mode, clusterId));
+    });
+  }
+
+  simKey() {
+    const bank = this.bank();
+    return this.state.mode + ':' + bank.clusters.map(c => c.id).join(',') + ':' + bank.nodes.length;
+  }
+
+  drilled() {
+    return this.state.view === 'cloud' && this.state.focusedCluster && (this.state.clusterView || 'cloud') === 'cloud';
+  }
+
+  clusterR(count, lo, hi) {
+    if (hi <= lo) return 56;
+    return 36 + 42 * Math.pow((count - lo) / (hi - lo), 0.8);
+  }
+
+  clusterSizes() {
+    const bank = this.bank();
+    const counts = bank.clusters.map(cl => bank.nodes.filter(x => x.cluster === cl.id && !x.done).length);
+    const lo = counts.length ? Math.min.apply(null, counts) : 0;
+    const hi = counts.length ? Math.max.apply(null, counts) : 1;
+    const out = {};
+    bank.clusters.forEach((cl, i) => { out[cl.id] = this.clusterR(counts[i], lo, hi); });
+    return out;
+  }
+
+  nodeR(p) { return p === 1 ? 55 : p === 2 ? 48 : 43; }
+
+  fitFont(title, box, base) {
+    const words = String(title).split(/\s+/);
+    let longest = 0;
+    words.forEach(w => { longest = Math.max(longest, w.length); });
+    let fs = base;
+    for (let i = 0; i < 24; i++) {
+      const cw = fs * 0.54;
+      const perLine = Math.max(1, Math.floor(box / cw));
+      let lines = 1, used = 0;
+      words.forEach(w => {
+        const need = used ? used + 1 + w.length : w.length;
+        if (need <= perLine) used = need;
+        else { lines++; used = w.length; }
+      });
+      if (longest * cw <= box && lines * fs * 1.32 <= box - 2) break;
+      fs -= 0.5;
+      if (fs <= 9) { fs = 9; break; }
+    }
+    return fs;
+  }
+
+  simKey() {
+    const bank = this.bank();
+    const drill = this.drilled() ? this.state.focusedCluster : '-';
+    return this.state.mode + ':' + drill + ':' + bank.clusters.map(c => c.id).join(',') + ':' + bank.nodes.filter(x => !x.done).map(x => x.id + (x.p || 2)).join(',');
+  }
+
+  slots() {
+    const bank = this.bank();
+    const W = this.state.boxW || 900, H = this.state.boxH || 520;
+
+    if (this.drilled()) {
+      const cid = this.state.focusedCluster;
+      const items = bank.nodes.filter(x => x.cluster === cid && !x.done);
+      const half = (H - PAD_T - PAD_B) / 2;
+      const fit = Math.max(0.86, Math.min(1, half / 190));
+      const HUB = 44 * fit;
+      const GAP = 12;
+      const rings = [];
+      [1, 2, 3].forEach((p, ri) => {
+        const r = Math.round(this.nodeR(p) * fit);
+        const prev = ri === 0 ? HUB : rings[ri - 1].px + rings[ri - 1].r;
+        rings.push({ px: prev + r + GAP, r: r });
+      });
+      const out = [];
+      [1, 2, 3].forEach((p, ri) => {
+        const lane = items.filter(x => (x.p || 2) === p);
+        const n = lane.length || 1;
+        const r = rings[ri].r;
+        const rxF = Math.min(rings[ri].px, W / 2 - r - 10) / W;
+        const ryF = Math.max(0.08, Math.min(rings[ri].px, half - r) / H);
+        lane.forEach((it, i) => {
+          const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n + (ri * 2 * Math.PI) / (3 * n) + 0.5 * (hash01(it.id) - 0.5);
+          const w = 1 + 0.06 * Math.sin(hash01(it.id) * 6.28);
+          out.push({
+            id: it.id, r: r, base: ang, phase: hash01(it.id) * 6.28,
+            rxF: rxF, ryF: ryF, dir: ri % 2 ? -1 : 1,
+            padded: true,
+            x: Math.min(Math.max(W / 2 + rxF * W * w * Math.cos(ang), r + 6), W - r - 6),
+            y: Math.min(Math.max(H / 2 + ryF * H * w * Math.sin(ang), PAD_T + r), H - PAD_B - r)
+          });
+        });
+      });
+      const memN = (this.state.memories || []).filter(m => m.mode === this.state.mode && m.cluster === cid && (m.status || 'live') === 'live').length;
+      const mr = Math.round((29 + Math.min(11, memN)) * fit);
+      const mang = 2.5;
+      const morb = Math.min(rings[2].px + mr + 22, W / 2 - mr - 12);
+      out.push({
+        id: '__mem', r: mr, base: mang, phase: 1.7, padded: true,
+        rxF: morb / W, ryF: Math.max(0.07, Math.min(morb * 0.62, half - mr) / H),
+        dir: 1, spd: 0.4,
+        x: W / 2 + morb * Math.cos(mang),
+        y: H / 2 + morb * 0.62 * Math.sin(mang)
+      });
+      return this.separate(out, W, H, true, W * (items.length > 10 ? 1.26 : 1.06));
+    }
+
+    const sizes = this.clusterSizes();
+    const n = bank.clusters.length || 1;
+    return this.separate(bank.clusters.map((cl, i) => {
+      const r = sizes[cl.id];
+      const h1 = hash01(cl.id);
+      const h2 = hash01(cl.id + '~orbit');
+      const spread = 0.25 + (n > 4 ? 0.13 : 0.08) * h2;
+      const rxF = Math.min(spread, (W / 2 - r - 12) / W);
+      const ryF = Math.max(0.13, Math.min(spread * 1.05, (H / 2 - r - 10) / H));
+      const jit = 0.34 * Math.min(1, n / 6);
+      const ang = -Math.PI / 2 + ((i + jit * (h1 - 0.5)) * 2 * Math.PI) / n;
+      const w = 1 + 0.07 * Math.sin(h1 * 6.28);
+      return {
+        id: cl.id, r: r, base: ang, phase: h1 * 6.28,
+        rxF: rxF, ryF: ryF, dir: h2 > 0.55 ? -1 : 1, spd: 0.7 + h2 * 0.7,
+        x: Math.min(Math.max(W / 2 + rxF * W * w * Math.cos(ang), r + 8), W - r - 8),
+        y: Math.min(Math.max(H / 2 + ryF * H * w * Math.sin(ang), r + 8), H - r - 8)
+      };
+    }), W, H, false);
+  }
+
+  separate(list, W, H, pad, spanW) {
+    const GAPN = pad ? 8 : 10;
+    const WB = spanW || W;
+    const cx = W / 2;
+    const cy = pad ? PAD_T + (H - PAD_T - PAD_B) / 2 : H / 2;
+    const hubR = pad ? 40 : 54;
+    for (let iter = 0; iter < 600; iter++) {
+      let moved = false;
+      for (let i = 0; i < list.length; i++) {
+        const a = list[i];
+        for (let j = i + 1; j < list.length; j++) {
+          const b = list[j];
+          let dx = b.x - a.x, dy = b.y - a.y;
+          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) { dx = (i % 2 ? 1 : -1) * 0.8; dy = (j % 2 ? 1 : -1) * 0.6; }
+          else if (Math.abs(dx) < 1) dx = (i % 2 ? 1 : -1) * 0.9;
+          const d = Math.max(0.01, Math.hypot(dx, dy));
+          const min = a.r + b.r + GAPN;
+          if (d < min) {
+            moved = true;
+            const s = (min - d) / d / 2;
+            a.x -= dx * s; a.y -= dy * s;
+            b.x += dx * s; b.y += dy * s;
+          }
+        }
+        const hx = a.x - cx, hy = a.y - cy;
+        const hd = Math.max(0.01, Math.hypot(hx, hy));
+        const hmin = hubR + a.r + GAPN;
+        if (hd < hmin) {
+          moved = true;
+          a.x = cx + (hx / hd) * hmin;
+          a.y = cy + (hy / hd) * hmin;
+        }
+        const top = pad ? PAD_T + a.r : a.r + 6;
+        const bot = pad ? H - PAD_B - a.r : H - a.r - 6;
+        a.x = Math.min(Math.max(a.x, a.r + 6 - (WB - W) / 2), WB - a.r - 6 - (WB - W) / 2);
+        a.y = Math.min(Math.max(a.y, top), Math.max(top, bot));
+      }
+      if (!moved) break;
+    }
+    return list;
+  }
+
+  initSim() {
+    this.sim = {
+      key: this.simKey(),
+      hubR: this.drilled() ? 44 : 54,
+      orbs: this.slots().map(sl => Object.assign({ vx: 0, vy: 0 }, sl))
+    };
+  }
+
+  startSim() {
+    if (this.raf) return;
+    const frame = () => {
+      this.raf = requestAnimationFrame(frame);
+      this.stepSim();
+    };
+    this.raf = requestAnimationFrame(frame);
+  }
+
+  stopSim() {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+  }
+
+  stepSim() {
+    const el = document.getElementById('cumulus-cloud');
+    if (!el || !this.sim) return;
+    const W = el.clientWidth, H = el.clientHeight;
+    if (!W || !H) return;
+    const speed = this.props.floatSpeed ?? 1;
+    const t = performance.now() / 1000;
+    const padded = orbs0 => orbs0.length && orbs0[0].padded;
+    const orbs = this.sim.orbs;
+    const pad = padded(orbs);
+    const cxc = W / 2, cyc = pad ? PAD_T + (H - PAD_T - PAD_B) / 2 : H / 2;
+
+    orbs.forEach(o => {
+      if (this.dragId === o.id) return;
+      const ang = o.base + t * 0.035 * speed * (o.dir || 1) * (o.spd || 1);
+      const w = 1 + 0.06 * Math.sin(t * 0.22 * speed + o.phase);
+      const tx = cxc + o.rxF * W * w * Math.cos(ang);
+      const ty = cyc + o.ryF * H * w * Math.sin(ang);
+      o.vx += (tx - o.x) * 0.0022;
+      o.vy += (ty - o.y) * 0.0022;
+    });
+
+    for (let i = 0; i < orbs.length; i++) {
+      for (let j = i + 1; j < orbs.length; j++) {
+        const p = orbs[i], q = orbs[j];
+        const dx = q.x - p.x, dy = q.y - p.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const min = p.r + q.r + 11;
+        if (d < min) {
+          const push = (min - d) / d * 0.06;
+          if (this.dragId !== p.id) { p.vx -= dx * push; p.vy -= dy * push; }
+          if (this.dragId !== q.id) { q.vx += dx * push; q.vy += dy * push; }
+        }
+      }
+    }
+
+    orbs.forEach(o => {
+      const dx = o.x - cxc, dy = o.y - cyc;
+      const d = Math.max(1, Math.hypot(dx, dy));
+      const min = this.sim.hubR + o.r + 10;
+      if (d < min && this.dragId !== o.id) {
+        const push = (min - d) / d * 0.08;
+        o.vx += dx * push; o.vy += dy * push;
+      }
+      if (this.dragId !== o.id) {
+        o.vx *= 0.965; o.vy *= 0.965;
+        o.x += o.vx; o.y += o.vy;
+        const m = o.r + 6;
+        const topY = pad ? PAD_T + o.r : m;
+        const botY = pad ? H - PAD_B - o.r : H - m;
+        if (o.x < m) { o.x = m; o.vx = Math.abs(o.vx) * 0.4; }
+        if (o.x > W - m) { o.x = W - m; o.vx = -Math.abs(o.vx) * 0.4; }
+        if (o.y < topY) { o.y = topY; o.vy = Math.abs(o.vy) * 0.4; }
+        if (o.y > botY) { o.y = botY; o.vy = -Math.abs(o.vy) * 0.4; }
+      }
+      const node = document.getElementById('orb-' + o.id);
+      if (node) { node.style.left = (o.x - o.r) + 'px'; node.style.top = (o.y - o.r) + 'px'; }
+      const line = document.getElementById('tether-' + o.id);
+      if (line) { line.setAttribute('x1', cxc); line.setAttribute('y1', cyc); line.setAttribute('x2', o.x); line.setAttribute('y2', o.y); }
+    });
+
+    const svg = document.getElementById('cumulus-links');
+    if (svg) svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    const hub = document.getElementById('cumulus-hub');
+    if (hub) hub.style.transform = 'translate(-50%, calc(-50% + ' + (cyc - H / 2 + 3 * Math.sin(t * 0.5)).toFixed(1) + 'px))';
+  }
+
+  attachMap() {
+    const el = document.getElementById('cumulus-cloud');
+    if (!el || el.dataset.orbdrag === '1') return;
+    el.dataset.orbdrag = '1';
+
+    el.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      this.setState(st => {
+        const z0 = st.mapZoom || 1;
+        const z = Math.min(2.4, Math.max(0.5, z0 * (e.deltaY < 0 ? 1.09 : 1 / 1.09)));
+        const k = z / z0;
+        return { mapZoom: z, mapPanX: mx - k * (mx - st.mapPanX), mapPanY: my - k * (my - st.mapPanY) };
+      });
+    }, { passive: false });
+
+    el.addEventListener('pointerdown', e => {
+      const target = e.target.closest('[data-orb]');
+      if (!target || !this.sim) {
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('[data-nopan]')) return;
+        const sx = e.clientX, sy = e.clientY;
+        const px = this.state.mapPanX, py = this.state.mapPanY;
+        el.style.cursor = 'grabbing';
+        const pmove = ev => this.setState({ mapPanX: px + (ev.clientX - sx), mapPanY: py + (ev.clientY - sy) });
+        const pup = () => {
+          el.style.cursor = 'grab';
+          window.removeEventListener('pointermove', pmove);
+          window.removeEventListener('pointerup', pup);
+        };
+        window.addEventListener('pointermove', pmove);
+        window.addEventListener('pointerup', pup);
+        return;
+      }
+      const id = target.getAttribute('data-orb');
+      const orb = this.sim.orbs.find(o => o.id === id);
+      if (!orb) return;
+      const rect = el.getBoundingClientRect();
+      const z = this.state.mapZoom || 1;
+      const toStage = (cx, cy) => ({ x: (cx - rect.left - this.state.mapPanX) / z, y: (cy - rect.top - this.state.mapPanY) / z });
+      const p0 = toStage(e.clientX, e.clientY);
+      const gx = p0.x - orb.x;
+      const gy = p0.y - orb.y;
+      let moved = 0;
+      const t0 = performance.now();
+      this.dragId = id;
+      target.style.cursor = 'grabbing';
+      let last = { x: e.clientX, y: e.clientY };
+
+      const move = ev => {
+        moved += Math.abs(ev.clientX - last.x) + Math.abs(ev.clientY - last.y);
+        orb.vx = ((ev.clientX - last.x) / z) * 0.35;
+        orb.vy = ((ev.clientY - last.y) / z) * 0.35;
+        last = { x: ev.clientX, y: ev.clientY };
+        const p = toStage(ev.clientX, ev.clientY);
+        orb.x = p.x - gx;
+        orb.y = p.y - gy;
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        target.style.cursor = 'grab';
+        this.dragId = null;
+        if (moved < 6 && performance.now() - t0 < 500) {
+          if (this.drilled()) this.set({ selected: id });
+          else this.drillInto(id);
+        }
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  moveNode(id, tierId, index) {
+    const mode = this.state.mode;
+    const data = JSON.parse(JSON.stringify(this.state.data));
+    const nodes = data[mode].nodes;
+    const from = nodes.findIndex(x => x.id === id);
+    if (from < 0) return;
+    const node = nodes[from];
+    const cluster = node.cluster;
+    nodes.splice(from, 1);
+    node.p = tierId;
+    const lane = nodes.filter(x => x.cluster === cluster && (x.p || 2) === tierId);
+    let at;
+    if (index >= lane.length) {
+      at = lane.length ? nodes.indexOf(lane[lane.length - 1]) + 1 : nodes.length;
+    } else {
+      at = nodes.indexOf(lane[index]);
+    }
+    nodes.splice(at, 0, node);
+    this.setState({ data: data, dragId: null, dragOver: null }, () => this.persist());
+  }
+
+  closeItem(id) {
+    const hit = this.nodeById(id);
+    const title = hit ? hit.node.title : '';
+    this.mutateNode(id, nd => { nd.done = true; });
+    this.setState(st => ({
+      focus: st.focus.filter(x => x.id !== id),
+      closed: [{ id: id, title: title, at: Date.now() }].concat((st.closed || []).filter(c => c.id !== id)).slice(0, 25)
+    }), () => { this.persist(); this.flash('Closed: ' + title); });
+  }
+
+  reopenItem(id) {
+    this.mutateNode(id, nd => { nd.done = false; });
+    this.setState(st => ({
+      closed: (st.closed || []).filter(c => c.id !== id),
+      focus: st.focus.some(x => x.id === id) ? st.focus : st.focus.concat([{ id: id }])
+    }), () => { this.persist(); this.flash('Re-opened. Back in the focus block.'); });
+  }
+
+  reorderFocus(id, index) {
+    this.setState(st => {
+      const list = st.focus.slice();
+      const from = list.findIndex(x => x.id === id);
+      if (from < 0) return {};
+      const [item] = list.splice(from, 1);
+      const at = Math.max(0, Math.min(index, list.length));
+      list.splice(at, 0, item);
+      return { focus: list, focusDragId: null, focusDragOver: null };
+    }, () => this.persist());
+  }
+
+  drillInto(clusterId) {
+    this.set({ focusedCluster: this.state.focusedCluster === clusterId ? null : clusterId, selected: null, mapZoom: 1, mapPanX: 0, mapPanY: 0 });
+  }
+
+  createCluster() {
+    const name = (this.state.newCluster || '').trim();
+    if (!name) { this.setState({ newCluster: null }); return; }
+    const data = JSON.parse(JSON.stringify(this.state.data));
+    const mode = this.state.mode;
+    const id = 'c' + Date.now();
+    data[mode].clusters.push({ id: id, label: name });
+    this.setState({ data: data, newCluster: null }, () => { this.persist(); this.flash('Cluster created: ' + name); });
+  }
+
+  measure() {
+    const el = document.getElementById('cumulus-cloud');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    if (Math.abs(r.width - (this.state.boxW || 0)) > 3 || Math.abs(r.height - (this.state.boxH || 0)) > 3) {
+      this.setState({ boxW: Math.round(r.width), boxH: Math.round(r.height) });
+    }
+  }
+
+  memSet(id, patch) {
+    this.set({ memories: (this.state.memories || []).map(m => m.id === id ? Object.assign({}, m, patch) : m) });
+  }
+  memKeep(id) {
+    this.memSet(id, { status: 'live' });
+    this.flash('Kept. It is on the timeline.');
+  }
+  memDiscard(id) {
+    this.set({ memories: (this.state.memories || []).filter(m => m.id !== id) });
+    this.flash('Discarded.');
+  }
+  memKeepAll(ids) {
+    const set = {};
+    ids.forEach(i => { set[i] = 1; });
+    this.set({ memories: (this.state.memories || []).map(m => set[m.id] ? Object.assign({}, m, { status: 'live' }) : m) });
+    this.flash('Kept ' + ids.length + ' memories.');
+  }
+  memPull(ids) {
+    const set = {};
+    ids.forEach(i => { set[i] = 1; });
+    this.set({ memories: (this.state.memories || []).map(m => set[m.id] ? Object.assign({}, m, { recall: (m.recall || 0) + 1 }) : m) });
+  }
+  memPackText(list) {
+    return list.map(m => '## ' + m.title + '\n[' + m.type + ' · ' + m.d + ']\n' + m.body + (m.instead ? '\nRejected: ' + m.instead : '') + (m.code ? '\n' + m.code : '')).join('\n\n');
+  }
+  sendPack(list) {
+    const txt = this.memPackText(list);
+    try { if (navigator.clipboard) navigator.clipboard.writeText(txt); } catch (e) { /* ignore */ }
+    this.memPull(list.map(m => m.id));
+    this.flash('Pack copied · ' + list.length + ' memories, heat updated.');
+  }
+
+  memWhen(iso) {
+    const t = D(iso);
+    const days = (Date.now() - t) / 86400000;
+    if (days < 1.4) return 'today';
+    if (days < 7) return Math.round(days) + 'd ago';
+    return fmtDay(iso);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const hue = this.hue();
+    const modeColor = 'oklch(0.82 0.135 ' + hue + ')';
+    const modeBorder = 'oklch(0.43 0.095 ' + hue + ')';
+    const modeSoft = 'oklch(0.28 0.055 ' + hue + ')';
+    const bank = this.bank();
+    const sel = s.selected ? this.nodeById(s.selected) : null;
+
+    const modeChips = MODES.map(m => {
+      const on = m.id === s.mode;
+      const h = HUE[m.id];
+      return {
+        label: m.label, short: m.short,
+        bg: on ? 'oklch(0.29 0.06 ' + h + ')' : 'oklch(0.19 0.008 265)',
+        border: on ? 'oklch(0.48 0.10 ' + h + ')' : 'oklch(0.26 0.008 265)',
+        fg: on ? 'oklch(0.88 0.12 ' + h + ')' : 'oklch(0.58 0.006 265)',
+        dot: on ? 'oklch(0.82 0.15 ' + h + ')' : 'oklch(0.40 0.03 ' + h + ')',
+        dotGlow: on ? '0 0 12px oklch(0.78 0.16 ' + h + ' / 0.75)' : 'none',
+        onClick: () => this.set({ mode: m.id, focusedCluster: null, selected: null, journalDay: Object.keys(this.state.data[m.id].journal)[0] })
+      };
+    });
+
+    const viewTabs = VIEWS.map(v => {
+      const on = v.id === s.view;
+      const badge = v.id === 'inbox' && s.inbox.length ? String(s.inbox.length)
+        : v.id === 'focus' && s.focus.length ? String(s.focus.length) : false;
+      return {
+        label: v.label, badge: badge,
+        bg: on ? modeSoft : 'transparent',
+        fg: on ? modeColor : 'oklch(0.66 0.012 265)',
+        badgeBg: on ? 'oklch(0.38 0.075 ' + hue + ')' : 'oklch(0.27 0.008 265)',
+        badgeFg: on ? 'oklch(0.95 0.03 ' + hue + ')' : 'oklch(0.70 0.006 265)',
+        onClick: () => this.set({ view: v.id, selected: v.id === 'cloud' ? this.state.selected : null })
+      };
+    });
+
+    const slotMap = {};
+    this.slots().forEach(sl => { slotMap[sl.id] = sl; });
+    const mapW = s.boxW || 900, mapH = s.boxH || 520;
+    const drilled = this.drilled();
+    const drillCluster = s.focusedCluster;
+
+    let orbs;
+    if (drilled) {
+      orbs = bank.nodes.filter(x => x.cluster === drillCluster && !x.done).map(it => {
+        const p = it.p || 2;
+        const sl = slotMap[it.id] || { x: mapW / 2, y: mapH / 2, r: 46 };
+        const on = s.selected === it.id;
+        const lum = p === 1 ? 0.74 : p === 2 ? 0.60 : 0.46;
+        const chroma = p === 1 ? 0.13 : p === 2 ? 0.07 : 0.02;
+        return {
+          id: it.id, domId: 'orb-' + it.id, label: it.title,
+          size: Math.round(sl.r * 2) + 'px',
+          labelW: Math.round(sl.r * 1.40) + 'px',
+          weight: p === 1 ? 500 : 400,
+          clamp: 7,
+          left: Math.round(sl.x - sl.r) + 'px', top: Math.round(sl.y - sl.r) + 'px',
+          glow: 'radial-gradient(circle at 42% 34%, oklch(' + lum + ' ' + chroma + ' ' + hue + ' / ' + (on ? 0.34 : 0.22) + ') 0%, oklch(' + (lum - 0.12) + ' ' + (chroma * 0.7) + ' ' + hue + ' / 0.08) 54%, transparent 78%)',
+          ring: on ? modeColor : 'oklch(' + (lum - 0.24) + ' ' + (chroma * 0.6) + ' ' + hue + ' / 0.6)',
+          fg: p === 3 ? 'oklch(0.80 0.008 265)' : 'oklch(0.95 ' + (chroma * 0.4) + ' ' + hue + ')',
+          fontSize: this.fitFont(it.title, Math.round(sl.r * 1.40), p === 1 ? 15 : p === 2 ? 13.5 : 12) + 'px',
+          tallyText: ''
+        };
+      });
+    } else {
+      const sizes = this.clusterSizes();
+      orbs = bank.clusters.map(cl => {
+        const sl = slotMap[cl.id] || { x: mapW / 2, y: mapH / 2, r: 60 };
+        const all = bank.nodes.filter(x => x.cluster === cl.id && !x.done);
+        const tally = [1, 2, 3].map(p => all.filter(x => (x.p || 2) === p).length);
+        const total = all.length || 1;
+        const r = sizes[cl.id];
+        return {
+          id: cl.id, domId: 'orb-' + cl.id, label: cl.label,
+          size: Math.round(r * 2) + 'px',
+          labelW: Math.round(r * 1.42) + 'px',
+          weight: 500,
+          clamp: 4,
+          left: Math.round(sl.x - r) + 'px', top: Math.round(sl.y - r) + 'px',
+          glow: 'radial-gradient(circle at 42% 34%, oklch(0.70 0.13 ' + hue + ' / 0.22) 0%, oklch(0.58 0.11 ' + hue + ' / 0.08) 52%, oklch(0.30 0.04 ' + hue + ' / 0.03) 74%, transparent 78%)',
+          ring: 'oklch(0.42 0.06 ' + hue + ' / 0.55)',
+          fg: 'oklch(0.90 0.06 ' + hue + ')',
+          fontSize: this.fitFont(cl.label, Math.round(r * 1.42), r > 62 ? 17 : r > 52 ? 15.5 : 14) + 'px',
+          tallyText: ''
+        };
+      });
+    }
+
+    const tethers = (this.props.linkLines ?? true)
+      ? orbs.map(o => {
+          const sl = slotMap[o.id] || { x: mapW / 2, y: mapH / 2 };
+          return {
+            domId: 'tether-' + o.id, dash: '', stroke: 'oklch(0.52 0.09 ' + hue + ' / ' + (drilled ? 0.18 : 0.28) + ')',
+            x1: Math.round(mapW / 2), y1: Math.round(mapH / 2),
+            x2: Math.round(sl.x), y2: Math.round(sl.y)
+          };
+        }).concat(drilled && slotMap['__mem'] ? [{
+          domId: 'tether-__mem', dash: '3 6', stroke: 'oklch(0.62 0.10 ' + hue + ' / 0.34)',
+          x1: Math.round(mapW / 2), y1: Math.round(mapH / 2),
+          x2: Math.round(slotMap['__mem'].x), y2: Math.round(slotMap['__mem'].y)
+        }] : [])
+      : [];
+
+    const dragOver = s.dragOver || null;
+    const boardCluster = s.focusedCluster;
+    const boardNodes = boardCluster ? bank.nodes.filter(x => x.cluster === boardCluster && !x.done) : [];
+    const boardLists = TIERS.map(t => {
+      const cards = boardNodes.filter(x => (x.p || 2) === t.id);
+      const hot = dragOver && dragOver.p === t.id;
+      return {
+        label: t.label,
+        count: cards.length + (cards.length === 1 ? ' card' : ' cards'),
+        border: hot ? modeBorder : 'oklch(0.27 0.012 265)',
+        bg: hot ? 'oklch(0.215 0.02 ' + hue + ')' : 'oklch(0.19 0.01 265)',
+        fg: t.id === 1 ? 'oklch(0.86 0.13 ' + hue + ')' : t.id === 2 ? 'oklch(0.80 0.05 ' + hue + ')' : 'oklch(0.70 0.008 265)',
+        tailBorder: hot && dragOver.index >= cards.length ? modeColor : 'oklch(0.25 0.01 265)',
+        tailLabel: cards.length ? '' : 'drop here',
+        onDragOver: e => { e.preventDefault(); if (!dragOver || dragOver.p !== t.id || dragOver.index !== cards.length) this.setState({ dragOver: { p: t.id, index: cards.length } }); },
+        onDragOverTail: e => { e.preventDefault(); if (!dragOver || dragOver.p !== t.id || dragOver.index !== cards.length) this.setState({ dragOver: { p: t.id, index: cards.length } }); },
+        onDrop: e => {
+          e.preventDefault();
+          const id = s.dragId || e.dataTransfer.getData('text/plain');
+          if (id) this.moveNode(id, t.id, dragOver && dragOver.p === t.id ? dragOver.index : cards.length);
+        },
+        cards: cards.map((it, i) => {
+          const on = s.selected === it.id;
+          const isDrag = s.dragId === it.id;
+          const marker = dragOver && dragOver.p === t.id && dragOver.index === i;
+          return {
+            title: it.title,
+            badge: it.notes.length ? String(it.notes.length) : (it.kind === 'topic' ? 'topic' : false),
+            bg: on ? 'oklch(0.30 0.055 ' + hue + ')' : 'oklch(0.235 0.012 265)',
+            border: on ? modeColor : 'oklch(0.30 0.012 265)',
+            hoverBorder: modeColor,
+            topEdge: marker ? '3px solid ' + modeColor : '1px solid ' + (on ? modeColor : 'oklch(0.30 0.012 265)'),
+            fg: on ? 'oklch(0.98 0.02 ' + hue + ')' : 'oklch(0.90 0.008 265)',
+            dot: it.kind === 'topic' ? 'oklch(0.82 0.15 ' + hue + ')' : t.id === 1 ? 'oklch(0.70 0.11 ' + hue + ')' : 'oklch(0.42 0.008 265)',
+            opacity: isDrag ? 0.4 : 1,
+            onClick: () => this.set({ selected: it.id }),
+            onDragStart: e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.id); this.setState({ dragId: it.id }); },
+            onDragEnd: () => this.setState({ dragId: null, dragOver: null }),
+            onDragOver: e => {
+              e.preventDefault(); e.stopPropagation();
+              if (!dragOver || dragOver.p !== t.id || dragOver.index !== i) this.setState({ dragOver: { p: t.id, index: i } });
+            },
+            onDrop: e => {
+              e.preventDefault(); e.stopPropagation();
+              const id = s.dragId || e.dataTransfer.getData('text/plain');
+              if (id) this.moveNode(id, t.id, i);
+            }
+          };
+        })
+      };
+    });
+
+    const clusterTargets = (item) => bank.clusters.map(c => ({
+      label: c.label,
+      border: modeBorder, bg: 'oklch(0.24 0.035 ' + hue + ')', fg: 'oklch(0.90 0.06 ' + hue + ')',
+      onClick: () => this.fileItem(item, c.id)
+    }));
+
+    const inboxItems = s.inbox.map(item => ({
+      text: item.text, stamp: item.stamp, targets: clusterTargets(item),
+      onDrop: () => this.setState(st => ({ inbox: st.inbox.filter(x => x.id !== item.id) }), () => this.persist())
+    }));
+
+    const fDragOver = s.focusDragOver;
+    const focusQueue = s.focus.map((q, i) => {
+      const hit = this.nodeById(q.id);
+      if (!hit) return null;
+      const isDrag = s.focusDragId === q.id;
+      const marker = fDragOver === i;
+      return {
+        num: pad(i + 1),
+        title: hit.node.title,
+        cluster: MODES.find(m => m.id === hit.mode).label + ' · ' + this.clusterLabel(hit.mode, hit.node.cluster),
+        border: 'oklch(0.30 0.016 265)',
+        topEdge: marker ? '3px solid ' + modeColor : '1px solid oklch(0.30 0.016 265)',
+        bg: 'oklch(0.21 0.014 265)',
+        opacity: isDrag ? 0.4 : 1,
+        onClose: () => this.closeItem(q.id),
+        onRemove: () => this.setState(st => ({ focus: st.focus.filter(x => x.id !== q.id) }), () => this.persist()),
+        onDragStart: e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', q.id); this.setState({ focusDragId: q.id }); },
+        onDragEnd: () => this.setState({ focusDragId: null, focusDragOver: null }),
+        onDragOver: e => { e.preventDefault(); if (fDragOver !== i) this.setState({ focusDragOver: i }); },
+        onDrop: e => {
+          e.preventDefault();
+          const id = s.focusDragId || e.dataTransfer.getData('text/plain');
+          if (id) this.reorderFocus(id, i);
+        }
+      };
+    }).filter(Boolean);
+
+    const closedItems = (s.closed || []).slice(0, 6).map(c => {
+      const hit = this.nodeById(c.id);
+      return {
+        title: hit ? hit.node.title : c.title,
+        when: ago(c.at),
+        onReopen: () => this.reopenItem(c.id)
+      };
+    });
+
+    const memStyle = (type) => {
+      if (type === 'decision') return { fg: 'oklch(0.90 0.13 ' + hue + ')', border: 'oklch(0.46 0.09 ' + hue + ')', bg: 'oklch(0.27 0.05 ' + hue + ')', dotRaw: '0.80 0.14 ' + hue, solid: true, round: '50%', card: 'oklch(0.215 0.022 ' + hue + ')', edge: 'oklch(0.36 0.05 ' + hue + ')' };
+      if (type === 'question') return { fg: 'oklch(0.88 0.13 62)', border: 'oklch(0.46 0.10 62)', bg: 'oklch(0.26 0.05 62)', dotRaw: '0.82 0.15 62', solid: false, round: '50%', card: 'oklch(0.205 0.012 265)', edge: 'oklch(0.38 0.06 62)' };
+      if (type === 'snippet') return { fg: 'oklch(0.82 0.01 265)', border: 'oklch(0.34 0.012 265)', bg: 'oklch(0.245 0.01 265)', dotRaw: '0.66 0.012 265', solid: true, round: '2px', card: 'oklch(0.20 0.01 265)', edge: 'oklch(0.30 0.012 265)' };
+      if (type === 'observation') return { fg: 'oklch(0.86 0.045 ' + hue + ')', border: 'oklch(0.37 0.035 ' + hue + ')', bg: 'oklch(0.245 0.022 ' + hue + ')', dotRaw: '0.72 0.06 ' + hue, solid: true, round: '50%', card: 'oklch(0.20 0.012 265)', edge: 'oklch(0.31 0.02 ' + hue + ')' };
+      return { fg: 'oklch(0.80 0.012 265)', border: 'oklch(0.32 0.012 265)', bg: 'oklch(0.235 0.01 265)', dotRaw: '0.58 0.012 265', solid: false, round: '50%', card: 'oklch(0.195 0.01 265)', edge: 'oklch(0.28 0.012 265)' };
+    };
+
+    const memAll = (s.memories || []).filter(m => m.mode === s.mode && m.cluster === s.focusedCluster);
+    const memQ = (s.memQuery || '').trim();
+    const memScore = {};
+    memAll.forEach(m => { memScore[m.id] = memQ ? simScore(memQ, m) : 0; });
+    const memPack = memQ
+      ? memAll.filter(m => (m.status || 'live') === 'live' && memScore[m.id] > 0.15).sort((a, b) => memScore[b.id] - memScore[a.id]).slice(0, this.props.packSize ?? 5)
+      : [];
+    const inPack = {};
+    memPack.forEach(m => { inPack[m.id] = 1; });
+    const memPending = memAll.filter(m => m.status === 'pending').sort((a, b) => D(b.d) - D(a.d));
+    const memArchive = memAll.filter(m => m.status === 'archived').sort((a, b) => D(b.d) - D(a.d));
+    const memLive = memAll.filter(m => (m.status || 'live') === 'live' && (!s.memType || m.type === s.memType)).sort((a, b) => D(b.d) - D(a.d));
+    const memPulls = memAll.reduce((n, m) => n + (m.recall || 0), 0);
+    const pendingAll = (s.memories || []).filter(m => m.mode === s.mode && m.status === 'pending');
+
+    const memSlot = drilled ? slotMap['__mem'] : null;
+    const memClLive = memAll.filter(m => (m.status || 'live') === 'live');
+    const memClPulls = memClLive.reduce((n, m) => n + (m.recall || 0), 0);
+    const memClHeat = Math.min(1, memClPulls / 60);
+    const memOrbR = memSlot ? memSlot.r : 32;
+    const memLatest = memClLive.slice().sort((a, b) => D(b.d) - D(a.d))[0];
+    const memOrb = memSlot ? {
+      domId: 'orb-__mem',
+      left: Math.round(memSlot.x - memOrbR) + 'px',
+      top: Math.round(memSlot.y - memOrbR) + 'px',
+      size: Math.round(memOrbR * 2) + 'px',
+      count: String(memClLive.length),
+      numSize: (memOrbR > 35 ? 19 : 16) + 'px',
+      numFg: 'oklch(0.95 0.05 ' + hue + ')',
+      labelFg: 'oklch(0.70 0.03 ' + hue + ')',
+      ring: s.memPeek ? modeColor : 'oklch(0.50 0.07 ' + hue + ' / 0.72)',
+      innerRing: 'oklch(' + (0.40 + memClHeat * 0.22).toFixed(2) + ' ' + (0.05 + memClHeat * 0.07).toFixed(3) + ' ' + hue + ' / 0.9)',
+      glow: 'radial-gradient(circle at 50% 50%, oklch(0.29 0.032 ' + hue + ' / 0.6) 0%, oklch(0.215 0.014 265 / 0.9) 64%, oklch(0.20 0.012 265 / 0.94) 100%)',
+      shadow: '0 0 ' + Math.round(9 + memClHeat * 26) + 'px oklch(0.62 0.10 ' + hue + ' / ' + (0.09 + memClHeat * 0.26).toFixed(2) + ')',
+      badge: memPending.length ? String(memPending.length) : false,
+      onClick: () => this.setState(st => ({ memPeek: !st.memPeek }))
+    } : false;
+
+    const memPeekTypes = MEM_TYPES.map(t => {
+      const ts = memStyle(t.id);
+      return { label: t.label, count: memClLive.filter(m => m.type === t.id).length, dot: 'oklch(' + ts.dotRaw + ')' };
+    }).filter(t => t.count);
+
+    const memPeekHot = memClLive.slice().sort((a, b) => (b.recall || 0) - (a.recall || 0)).slice(0, 3).map(m => {
+      const ts = memStyle(m.type);
+      const h = Math.min(1, (m.recall || 0) / 28);
+      return {
+        title: m.title,
+        pulls: (m.recall || 0) ? m.recall + '×' : '—',
+        dot: 'oklch(' + ts.dotRaw + ')',
+        dotSize: Math.round(5 + h * 5) + 'px',
+        onClick: () => this.set({ clusterView: 'memory', memPeek: false })
+      };
+    });
+
+    const memEntries = memLive.map((m, i) => {
+      const st = memStyle(m.type);
+      const heat = (this.props.heatVisual ?? true) ? Math.min(1, (m.recall || 0) / 28) : 0.35;
+      const dotSize = Math.round(9 + heat * 11);
+      const stale = (m.recall || 0) === 0 && (Date.now() - D(m.d)) / 86400000 > 30;
+      const matched = memQ && memScore[m.id] > 0.15;
+      return {
+        dir: i % 2 === 0 ? 'row-reverse' : 'row',
+        dim: memQ ? (inPack[m.id] ? 1 : 0.3) : 1,
+        typeLabel: MEM_TYPES.find(t => t.id === m.type).label,
+        typeFg: st.fg, typeBg: st.bg, typeBorder: st.border,
+        border: matched ? st.fg : st.edge,
+        bg: st.card,
+        title: m.title,
+        body: m.body || false,
+        instead: m.instead || false,
+        code: m.code || false,
+        when: this.memWhen(m.d),
+        author: m.author === 'claude' ? 'Claude Code' : 'you',
+        recallText: (m.recall || 0) === 0 ? 'never pulled' : 'pulled ' + m.recall + '×',
+        recallFg: heat > 0.4 ? 'oklch(0.84 0.10 ' + hue + ')' : 'oklch(0.58 0.012 265)',
+        staleHint: stale ? 'auto-archives in 7d' : false,
+        match: matched ? memScore[m.id].toFixed(2) : false,
+        dot: Math.round(dotSize) + 'px',
+        round: st.round,
+        dotBg: st.solid ? 'oklch(' + st.dotRaw + ')' : 'transparent',
+        dotRing: 'oklch(' + st.dotRaw + ')',
+        dotGlow: '0 0 ' + Math.round(3 + heat * 15) + 'px oklch(' + st.dotRaw + ' / ' + (0.12 + heat * 0.55).toFixed(2) + ')',
+        heatLabel: (m.recall || 0) ? String(m.recall) : '',
+        archiveLabel: 'archive',
+        onArchive: () => { this.memSet(m.id, { status: 'archived' }); this.flash('Archived. Recoverable at the bottom.'); }
+      };
+    });
+
+    const journal = bank.journal;
+    const days = Object.keys(journal).sort().reverse();
+    const day = journal[s.journalDay] !== undefined ? s.journalDay : days[0];
+    const text = journal[day] || '';
+    const mentions = [];
+    const re = /\[\[([^\]]+)\]\]/g;
+    let mm;
+    while ((mm = re.exec(text)) !== null) if (mentions.indexOf(mm[1]) === -1) mentions.push(mm[1]);
+
+    return {
+      modeLabel: MODES.find(m => m.id === s.mode).label,
+      modeMeta: bank.nodes.filter(x => !x.done).length + ' nodes · ' + bank.clusters.length + ' clusters · ' + s.inbox.length + ' in inbox' + (pendingAll.length ? ' · ' + pendingAll.length + ' memories to review' : ''),
+      modeColor: modeColor, modeBorder: modeBorder, modeSoft: modeSoft,
+      modeChips: modeChips, viewTabs: viewTabs,
+
+      captureText: s.capture,
+      captureHint: s.capture ? 'enter' : '',
+      onCaptureChange: e => this.setState({ capture: e.target.value }),
+      onCaptureKey: e => { if (e.key === 'Enter') this.addCapture(); },
+      onCaptureSubmit: () => this.addCapture(),
+
+      isCloud: s.view === 'cloud', isInbox: s.view === 'inbox', isFocus: s.view === 'focus',
+      isJournal: s.view === 'journal',
+
+      showMap: s.view === 'cloud' && (!s.focusedCluster || drilled),
+      showBoard: s.view === 'cloud' && !!s.focusedCluster && (s.clusterView || 'cloud') === 'cards',
+      showMemory: s.view === 'cloud' && !!s.focusedCluster && (s.clusterView || 'cloud') === 'memory',
+      isDrilled: drilled,
+      showNewCluster: s.view === 'cloud' && !s.focusedCluster,
+
+      memOrb: memOrb,
+      memPeekOpen: !!(drilled && s.memPeek && memOrb),
+      memPeekTypes: memPeekTypes,
+      memPeekHot: memPeekHot,
+      memPeekMeta: memClLive.length + ' kept · ' + memClPulls + ' pulls' + (memLatest ? ' · newest ' + this.memWhen(memLatest.d) : ''),
+      memPeekPending: memPending.length ? memPending.length + ' awaiting review' : false,
+      memPeekEmpty: memClLive.length === 0,
+      onMemPeekClose: () => this.set({ memPeek: false }),
+      onMemPeekOpen: () => this.set({ clusterView: 'memory', memPeek: false }),
+
+      memMeta: memLive.length + (memLive.length === 1 ? ' memory · ' : ' memories · ') + memPulls + ' pulls' + (memPending.length ? ' · ' + memPending.length + ' awaiting review' : ''),
+      memQuery: s.memQuery,
+      onMemQuery: e => this.setState({ memQuery: e.target.value }),
+      onMemQueryClear: () => this.setState({ memQuery: '' }),
+      memTypeChips: MEM_TYPES.map(t => {
+        const on = s.memType === t.id;
+        const n = memAll.filter(m => (m.status || 'live') === 'live' && m.type === t.id).length;
+        return {
+          label: t.label, count: n ? String(n) : '0',
+          border: on ? modeBorder : 'oklch(0.28 0.012 265)',
+          bg: on ? modeSoft : 'transparent',
+          fg: on ? modeColor : 'oklch(0.64 0.012 265)',
+          onClick: () => this.setState({ memType: on ? null : t.id })
+        };
+      }),
+      memEntries: memEntries,
+      memEmpty: memLive.length === 0 && memPending.length === 0,
+      memFiltered: memLive.length === 0 && memPending.length > 0,
+      spineColor: 'oklch(0.32 0.02 265)',
+      memPendingOpen: memPending.length > 0,
+      memPendingTitle: memPending.length === 1 ? 'Claude Code proposed 1 memory' : 'Claude Code proposed ' + memPending.length + ' memories',
+      onKeepAll: () => this.memKeepAll(memPending.map(m => m.id)),
+      memPendingItems: memPending.map(m => {
+        const st = memStyle(m.type);
+        return {
+          typeLabel: MEM_TYPES.find(t => t.id === m.type).label,
+          typeFg: st.fg, typeBg: st.bg, typeBorder: st.border,
+          title: m.title, body: m.body || false, when: this.memWhen(m.d),
+          onKeep: () => this.memKeep(m.id),
+          onDiscard: () => this.memDiscard(m.id)
+        };
+      }),
+      packOpen: memPack.length > 0,
+      packMeta: memPack.length + (memPack.length === 1 ? ' memory' : ' memories') + ' · ~' + Math.round(this.memPackText(memPack).length / 4) + ' tokens · top match ' + (memPack.length ? memScore[memPack[0].id].toFixed(2) : '0'),
+      packNone: !!memQ && memPack.length === 0,
+      onSendPack: () => this.sendPack(memPack),
+      hasArchived: memArchive.length > 0,
+      archivedLabel: (s.memArchivedOpen ? 'hide' : 'show') + ' archive · ' + memArchive.length,
+      showArchivedList: !!s.memArchivedOpen,
+      onToggleArchived: () => this.setState({ memArchivedOpen: !s.memArchivedOpen }),
+      archivedItems: memArchive.map(m => ({
+        title: m.title, when: fmtDay(m.d),
+        typeLabel: MEM_TYPES.find(t => t.id === m.type).label,
+        onRestore: () => { this.memSet(m.id, { status: 'live' }); this.flash('Restored to the timeline.'); }
+      })),
+
+      viewToggle: [{ id: 'cloud', label: 'Cloud' }, { id: 'cards', label: 'Cards' }, { id: 'memory', label: 'Memory' }].map(v => {
+        const on = (s.clusterView || 'cloud') === v.id;
+        return {
+          label: v.label,
+          bg: on ? modeSoft : 'transparent',
+          fg: on ? modeColor : 'oklch(0.68 0.012 265)',
+          onClick: () => this.set({ clusterView: v.id })
+        };
+      }),
+      orbs: orbs, tethers: tethers, boardLists: boardLists,
+      mapViewBox: '0 0 ' + mapW + ' ' + mapH,
+      mapTransform: 'translate(' + Math.round(s.mapPanX) + 'px, ' + Math.round(s.mapPanY) + 'px) scale(' + (s.mapZoom || 1).toFixed(3) + ')',
+      hubGlow: 'radial-gradient(circle at 44% 32%, oklch(0.62 0.11 ' + hue + ' / 0.20) 0%, oklch(0.42 0.07 ' + hue + ' / 0.07) 58%, transparent 76%)',
+      hubRing: 'oklch(0.46 0.08 ' + hue + ' / 0.6)',
+      hubSize: drilled ? '88px' : '108px',
+      hubShift: drilled ? 'translate(-50%, calc(-50% + 12px))' : 'translate(-50%, -50%)',
+      hubLabel: drilled ? this.clusterLabel(s.mode, drillCluster) : MODES.find(m => m.id === s.mode).label,
+      hubFont: drilled ? '9.5px' : '11.5px',
+      hubMeta: '',
+      boardMeta: boardNodes.length + ' cards · drag between lists to reprioritize',
+      boardPadRight: sel ? '370px' : '0px',
+      onNewCluster: () => this.setState({ newCluster: '' }),
+      onResetMap: () => this.setState({ mapZoom: 1, mapPanX: 0, mapPanY: 0 }),
+      newClusterOpen: s.newCluster !== null && s.newCluster !== undefined,
+      newClusterName: s.newCluster || '',
+      onNewClusterChange: e => this.setState({ newCluster: e.target.value }),
+      onNewClusterKey: e => { if (e.key === 'Enter') this.createCluster(); if (e.key === 'Escape') this.setState({ newCluster: null }); },
+      onNewClusterSave: () => this.createCluster(),
+      onNewClusterCancel: () => this.setState({ newCluster: null }),
+      focusedCluster: !!s.focusedCluster,
+      focusedLabel: s.focusedCluster ? this.clusterLabel(s.mode, s.focusedCluster) : '',
+      onClearCluster: () => this.set({ focusedCluster: null, selected: null, mapZoom: 1, mapPanX: 0, mapPanY: 0 }),
+
+      inboxItems: inboxItems, inboxEmpty: s.inbox.length === 0,
+
+      focusQueue: focusQueue, focusEmpty: focusQueue.length === 0,
+      focusSubtitle: focusQueue.length
+        ? 'Currently focusing on ' + focusQueue.length + (focusQueue.length === 1 ? ' item' : ' items') + ' · drag to reorder, check to close'
+        : 'A single ordered list. Nothing else competing for attention.',
+      hasClosed: closedItems.length > 0,
+      closedItems: closedItems,
+      closedDot: 'oklch(0.72 0.11 ' + hue + ')',
+      closedMeta: (s.closed || []).length + ' closed',
+
+      journalDays: days.map(d => ({
+        label: fmtDay(d),
+        words: journal[d].split(/\s+/).filter(Boolean).length + 'w',
+        bg: d === day ? modeSoft : 'transparent',
+        fg: d === day ? 'oklch(0.95 0.02 ' + hue + ')' : 'oklch(0.78 0.01 265)',
+        onClick: () => this.set({ journalDay: d })
+      })),
+      journalTitle: fmtDay(day) + ', 2026',
+      journalMeta: s.mode.toUpperCase() + ' · ' + day,
+      journalText: text,
+      onJournalChange: e => {
+        const v = e.target.value;
+        const data = JSON.parse(JSON.stringify(s.data));
+        data[s.mode].journal[day] = v;
+        this.set({ data: data });
+      },
+      journalLinks: mentions.map(t => {
+        const hit = bank.nodes.find(x => x.title === t);
+        return { label: t, onClick: () => hit ? this.set({ view: 'cloud', selected: hit.id }) : this.flash('No node named “' + t + '” yet.') };
+      }),
+      noJournalLinks: mentions.length === 0,
+
+      hasSelection: !!sel,
+      selTitle: sel ? sel.node.title : '',
+      selKind: sel ? (sel.node.kind === 'topic' ? 'Topic' : 'Task') : '',
+      selPath: sel ? MODES.find(m => m.id === sel.mode).label + ' / ' + this.clusterLabel(sel.mode, sel.node.cluster) : '',
+      selTiers: TIERS.map(t => {
+        const on = sel && (sel.node.p || 2) === t.id;
+        return {
+          label: t.label,
+          bg: on ? modeSoft : 'transparent',
+          border: on ? modeBorder : 'oklch(0.29 0.014 265)',
+          fg: on ? modeColor : 'oklch(0.68 0.012 265)',
+          onClick: () => sel && this.mutateNode(sel.node.id, nd => { nd.p = t.id; })
+        };
+      }),
+      selSummary: sel ? sel.node.summary : '',
+      selNotes: sel ? sel.node.notes.slice().reverse() : [],
+      selNoNotes: sel ? sel.node.notes.length === 0 : false,
+      queueLabel: sel && s.focus.some(f => f.id === sel.node.id) ? 'In this block ✓' : 'Send to focus block',
+      onQueue: () => {
+        if (!sel) return;
+        if (s.focus.some(f => f.id === sel.node.id)) { this.set({ view: 'focus' }); return; }
+        this.setState(st => ({ focus: st.focus.concat([{ id: sel.node.id, done: false }]) }), () => { this.persist(); this.flash('Queued in the focus block.'); });
+      },
+      onCloseSel: () => this.set({ selected: null }),
+      onSummaryChange: e => { const v = e.target.value; if (sel) this.mutateNode(sel.node.id, t => { t.summary = v; }); },
+      noteDraft: s.noteDraft,
+      onNoteDraftChange: e => this.setState({ noteDraft: e.target.value }),
+      onNoteKey: e => { if (e.key === 'Enter') this.addNoteNow(); },
+      onAddNote: () => this.addNoteNow(),
+
+      toast: s.toast || false
+    };
+  }
+
+  addNoteNow() {
+    const s = this.state;
+    const t = s.noteDraft.trim();
+    if (!t || !s.selected) return;
+    this.mutateNode(s.selected, node => { node.notes.push({ date: '2026-09-08', text: t }); });
+    this.setState({ noteDraft: '' });
+  }
+}
+
+</script>
+</body>
+</html>
