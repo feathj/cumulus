@@ -12,6 +12,7 @@ export interface NodeDetail {
   description: string | null;
   priority: Priority;
   completedAt: Date | null;
+  archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   cluster: { slug: string; title: string };
@@ -39,7 +40,7 @@ export interface NodeDetail {
   inFocus: boolean;
 }
 
-/** Everything the card detail panel shows. */
+/** Everything the card detail panel shows. Archived cards can still be opened. */
 export async function getNodeDetail(db: Db, id: string): Promise<NodeDetail> {
   const node = await db.node.findUnique({
     where: { id },
@@ -50,6 +51,7 @@ export async function getNodeDetail(db: Db, id: string): Promise<NodeDetail> {
       description: true,
       priority: true,
       completedAt: true,
+      archivedAt: true,
       createdAt: true,
       updatedAt: true,
       cluster: {
@@ -110,6 +112,26 @@ interface Placement {
   position: number;
 }
 
+/** The open cards in one tier of a cluster, in board order, optionally leaving one out. */
+function boardTier(
+  tx: Prisma.TransactionClient,
+  clusterId: string,
+  priority: Priority,
+  excludeId?: string,
+) {
+  return tx.node.findMany({
+    where: {
+      clusterId,
+      priority,
+      completedAt: null,
+      archivedAt: null,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, priority: true, position: true },
+  });
+}
+
 /** Writes positions 0..n-1 in list order, touching only rows that change. */
 async function renumber(tx: Prisma.TransactionClient, cards: Placement[], priority: Priority) {
   for (const [position, card] of cards.entries()) {
@@ -122,33 +144,83 @@ async function renumber(tx: Prisma.TransactionClient, cards: Placement[], priori
  * Moves an open card to a slot in a priority tier of its cluster — reordering
  * within a tier and changing priority are the same operation. Both the tier it
  * joins and the tier it leaves are renumbered, so positions stay 0..n-1 in
- * board order. Completed cards aren't on the board: they can't be moved and
- * don't take up a slot.
+ * board order. Completed and archived cards aren't on the board: they can't be
+ * moved and don't take up a slot.
  */
 export async function moveNode(db: Db, { id, priority, index }: MoveNodeInput): Promise<void> {
   await withTransaction(db, async (tx) => {
     const node = await tx.node.findUnique({
       where: { id },
-      select: { id: true, clusterId: true, priority: true, position: true, completedAt: true },
+      select: {
+        id: true,
+        clusterId: true,
+        priority: true,
+        position: true,
+        completedAt: true,
+        archivedAt: true,
+      },
     });
     if (!node) throw new NotFoundError('Node', id);
-    if (node.completedAt) {
-      throw new DomainError('CONFLICT', 'Completed cards are not on the board, so they cannot be moved.');
+    if (node.completedAt || node.archivedAt) {
+      throw new DomainError(
+        'CONFLICT',
+        `${node.archivedAt ? 'Archived' : 'Completed'} cards are not on the board, so they cannot be moved.`,
+      );
     }
 
-    const openTier = (tier: Priority) =>
-      tx.node.findMany({
-        where: { clusterId: node.clusterId, priority: tier, completedAt: null, id: { not: id } },
-        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-        select: { id: true, priority: true, position: true },
-      });
-
-    const target = await openTier(priority);
+    const target = await boardTier(tx, node.clusterId, priority, id);
     const slot = Math.min(Math.max(0, index), target.length);
     await renumber(tx, [...target.slice(0, slot), node, ...target.slice(slot)], priority);
 
     if (node.priority !== priority) {
-      await renumber(tx, await openTier(node.priority), node.priority);
+      await renumber(tx, await boardTier(tx, node.clusterId, node.priority, id), node.priority);
     }
+  });
+}
+
+/**
+ * Puts a card away: off the board, out of the cloud and out of the focus
+ * block, with its notes, attachments and memory kept. The gap it leaves in its
+ * tier is closed. Archiving an archived card changes nothing.
+ */
+export async function archiveNode(db: Db, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id },
+      select: { clusterId: true, priority: true, completedAt: true, archivedAt: true },
+    });
+    if (!node) throw new NotFoundError('Node', id);
+    if (node.archivedAt) return;
+
+    await tx.node.update({ where: { id }, data: { archivedAt: new Date() } });
+    await tx.focusItem.deleteMany({ where: { nodeId: id } });
+    if (!node.completedAt) {
+      await renumber(tx, await boardTier(tx, node.clusterId, node.priority, id), node.priority);
+    }
+  });
+}
+
+/**
+ * Brings an archived card back. An open card returns at the end of its tier;
+ * a completed one goes back among the completed cards. It doesn't rejoin the
+ * focus block.
+ */
+export async function restoreNode(db: Db, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id },
+      select: { clusterId: true, priority: true, completedAt: true, archivedAt: true },
+    });
+    if (!node) throw new NotFoundError('Node', id);
+    if (!node.archivedAt) return;
+
+    const tier = node.completedAt ? [] : await boardTier(tx, node.clusterId, node.priority, id);
+    await tx.node.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        ...(node.completedAt ? {} : { position: tier.length }),
+      },
+    });
   });
 }

@@ -1,17 +1,20 @@
 'use client';
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
 import CircularProgress from '@mui/material/CircularProgress';
 import MuiLink from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 import { useDomainPalette } from '@/components/domain-theme';
 import { Markdown } from '@/components/markdown';
+import { useShowNotice } from '@/components/notice';
+import type { ShowNotice } from '@/components/notice';
 import { withAlpha } from '@/lib/color';
 import { formatDay, plural } from '@/lib/format';
 import { authorLabel, memoryTypeStyle } from '@/lib/memory-style';
@@ -32,6 +35,7 @@ function formatBytes(bytes: number): string {
 /** The card detail panel, open whenever the URL has `?node=`. Escape closes it. */
 export function NodeDrawer() {
   const { selectedId, clear } = useNodeSelection();
+  const show = useShowNotice();
 
   useEffect(() => {
     if (!selectedId) return;
@@ -66,12 +70,13 @@ export function NodeDrawer() {
         animation: 'cumulusDrawerIn 200ms ease both',
       }}
     >
-      <NodeDetailPanel key={selectedId} id={selectedId} onClose={clear} />
+      {/* Notices go to the domain's snackbar, so an Undo survives the drawer closing. */}
+      <NodeDetailPanel key={selectedId} id={selectedId} onClose={clear} onNotice={show} />
     </Box>
   );
 }
 
-function NodeDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+function NodeDetailPanel({ id, onClose, onNotice }: { id: string; onClose: () => void; onNotice: ShowNotice }) {
   const trpc = useTRPC();
   const { data: node, isPending, isError } = useQuery(trpc.node.detail.queryOptions({ id }));
 
@@ -98,17 +103,91 @@ function NodeDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
           <CircularProgress size={20} aria-label="Loading card" />
         </Box>
       ) : isError ? (
-        <Typography sx={{ px: 2.5, color: 'text.secondary' }}>
-          This card couldn’t be loaded.
-        </Typography>
+        <Typography sx={{ px: 2.5, color: 'text.secondary' }}>This card couldn’t be loaded.</Typography>
       ) : (
-        <NodeDetailBody node={node} />
+        <NodeDetailBody node={node} onNotice={onNotice} />
       )}
     </>
   );
 }
 
-function NodeDetailBody({ node }: { node: NodeDetail }) {
+/** Archive or restore, with Undo after archiving. Invalidates everything that counts or shows cards. */
+function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNotice }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const palette = useDomainPalette();
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
+  };
+  const archive = useMutation(trpc.node.archive.mutationOptions({ onSettled: refresh }));
+  const restore = useMutation(trpc.node.restore.mutationOptions({ onSettled: refresh }));
+  const busy = archive.isPending || restore.isPending;
+
+  if (node.archivedAt) {
+    return (
+      <Box
+        sx={{
+          mt: 1.75,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.25,
+          flexWrap: 'wrap',
+          border: `1px dashed ${palette.border}`,
+          borderRadius: 1,
+          px: 1.5,
+          py: 1,
+        }}
+      >
+        <Typography sx={{ flex: 1, minWidth: 160, fontSize: 12, lineHeight: 1.4, color: neutral.textSoft }}>
+          Archived {formatDay(node.archivedAt)}. It isn’t on the board or in the cloud.
+        </Typography>
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={busy}
+          onClick={() =>
+            restore.mutate(
+              { id: node.id },
+              {
+                onSuccess: () => onNotice('Card restored.'),
+                onError: () => onNotice('That card couldn’t be restored.'),
+              },
+            )
+          }
+        >
+          Restore
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <Button
+      size="small"
+      variant="outlined"
+      color="inherit"
+      disabled={busy}
+      onClick={() =>
+        archive.mutate(
+          { id: node.id },
+          {
+            onSuccess: () =>
+              onNotice('Card archived.', { label: 'Undo', onClick: () => restore.mutate({ id: node.id }) }),
+            onError: () => onNotice('That card couldn’t be archived.'),
+          },
+        )
+      }
+      sx={{ mt: 1.75, color: neutral.muted, borderColor: neutral.lineStrong }}
+    >
+      Archive card
+    </Button>
+  );
+}
+
+function NodeDetailBody({ node, onNotice }: { node: NodeDetail; onNotice: ShowNotice }) {
   const palette = useDomainPalette();
   const memoryHref = `/${node.domain.slug}/${node.cluster.slug}/memory`;
   const pills = [
@@ -119,22 +198,13 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, pb: 3 }}>
-      <Typography
-        sx={{
-          fontSize: 9.5,
-          letterSpacing: '0.09em',
-          textTransform: 'uppercase',
-          color: palette.accent,
-        }}
-      >
+      <Typography sx={{ fontSize: 9.5, letterSpacing: '0.09em', textTransform: 'uppercase', color: palette.accent }}>
         {node.kind === 'TOPIC' ? 'Topic' : 'Task'}
       </Typography>
       <Typography component="h2" sx={{ fontSize: 17, fontWeight: 500, lineHeight: 1.4, mt: 1 }}>
         {node.title}
       </Typography>
-      <Typography
-        sx={{ fontSize: 10.5, letterSpacing: '0.04em', color: 'text.secondary', mt: 0.75 }}
-      >
+      <Typography sx={{ fontSize: 10.5, letterSpacing: '0.04em', color: 'text.secondary', mt: 0.75 }}>
         {node.domain.title} / {node.cluster.title} · added {formatDay(node.createdAt)}
       </Typography>
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1.75 }}>
@@ -158,20 +228,15 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
         ))}
       </Box>
 
+      <ArchiveControl node={node} onNotice={onNotice} />
+
       <Section title="Description">
-        {node.description ? (
-          <Markdown size="compact">{node.description}</Markdown>
-        ) : (
-          <Quiet>No description.</Quiet>
-        )}
+        {node.description ? <Markdown size="compact">{node.description}</Markdown> : <Quiet>No description.</Quiet>}
       </Section>
 
       {node.attachments.length > 0 && (
         <Section title={plural(node.attachments.length, 'attachment')}>
-          <Box
-            component="ul"
-            sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1 }}
-          >
+          <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {node.attachments.map((attachment) => {
               const details = [
                 attachment.mimeType,
@@ -192,9 +257,7 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
                     <Typography sx={{ fontSize: 13 }}>{attachment.name}</Typography>
                   )}
                   {details.length > 0 && (
-                    <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>
-                      {details.join(' · ')}
-                    </Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>{details.join(' · ')}</Typography>
                   )}
                 </li>
               );
@@ -214,10 +277,7 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
         {node.memory.length === 0 ? (
           <Quiet>Nothing kept about this card yet.</Quiet>
         ) : (
-          <Box
-            component="ul"
-            sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1.25 }}
-          >
+          <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             {node.memory.map((entry) => {
               const style = memoryTypeStyle(entry.type, palette.hue);
               const pending = entry.status === 'PENDING';
@@ -247,12 +307,8 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
                       {style.label}
                       {pending ? ' · awaiting review' : ''}
                     </Typography>
-                    <Typography sx={{ fontSize: 13.5, lineHeight: 1.4, mt: 0.25 }}>
-                      {entry.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
-                      {entry.description}
-                    </Typography>
+                    <Typography sx={{ fontSize: 13.5, lineHeight: 1.4, mt: 0.25 }}>{entry.title}</Typography>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>{entry.description}</Typography>
                   </Box>
                 </li>
               );
@@ -283,26 +339,13 @@ function NodeDetailBody({ node }: { node: NodeDetail }) {
   );
 }
 
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <Box component="section" sx={{ mt: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1 }}>
         <Typography
           component="h3"
-          sx={{
-            fontSize: 9.5,
-            letterSpacing: '0.09em',
-            textTransform: 'uppercase',
-            color: 'text.secondary',
-          }}
+          sx={{ fontSize: 9.5, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'text.secondary' }}
         >
           {title}
         </Typography>

@@ -12,7 +12,7 @@ import type { AppRouter } from '@/server/trpc/root';
 
 import { makeQueryClient } from './query-client';
 
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
+export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 let browserQueryClient: QueryClient | undefined;
 

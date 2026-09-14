@@ -14,10 +14,10 @@ export interface DomainRef {
 export interface DomainSummary extends DomainRef {
   /** Clusters that aren't archived. */
   clusterCount: number;
-  /** Open cards across those clusters. */
+  /** Open, unarchived cards across those clusters. */
   openNodeCount: number;
   focusCount: number;
-  /** Captures still waiting to be filed or discarded. */
+  /** Captures still waiting to be filed or archived. */
   inboxCount: number;
   /** Agent-written memory anywhere in the domain, waiting for review. */
   pendingMemoryCount: number;
@@ -37,7 +37,7 @@ export async function listDomains(db: Db): Promise<DomainSummary[]> {
         select: {
           clusters: { where: { archivedAt: null } },
           focusItems: true,
-          inboxItems: { where: { filedAt: null, discardedAt: null } },
+          inboxItems: { where: { filedAt: null, archivedAt: null } },
         },
       },
     },
@@ -52,7 +52,11 @@ export async function listDomains(db: Db): Promise<DomainSummary[]> {
       focusCount: _count.focusItems,
       inboxCount: _count.inboxItems,
       openNodeCount: await db.node.count({
-        where: { completedAt: null, cluster: { domainId: domain.id, archivedAt: null } },
+        where: {
+          completedAt: null,
+          archivedAt: null,
+          cluster: { domainId: domain.id, archivedAt: null },
+        },
       }),
       pendingMemoryCount: await db.memoryEntry.count({
         where: { ...entriesInDomain(domain.id), status: MemoryEntryStatus.PENDING },

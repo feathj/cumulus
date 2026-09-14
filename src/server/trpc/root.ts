@@ -1,12 +1,14 @@
 import { createCallerFactory, router } from './init';
 import { clusterRouter } from './routers/cluster';
 import { domainRouter } from './routers/domain';
+import { inboxRouter } from './routers/inbox';
 import { memoryRouter } from './routers/memory';
 import { nodeRouter } from './routers/node';
 
 export const appRouter = router({
   cluster: clusterRouter,
   domain: domainRouter,
+  inbox: inboxRouter,
   memory: memoryRouter,
   node: nodeRouter,
 });

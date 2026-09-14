@@ -213,6 +213,10 @@ model Node {
   /// Null while open. Set when checked off; "recently closed" reads from here.
   completedAt DateTime?
 
+  /// Set when put away: off the board and out of the cloud, with notes,
+  /// attachments and memory kept so it can be restored.
+  archivedAt DateTime?
+
   /// Last dragged position in the cluster cloud.
   layoutX Float?
   layoutY Float?
@@ -231,6 +235,7 @@ model Node {
 
   @@index([clusterId, priority, position])
   @@index([clusterId, completedAt])
+  @@index([clusterId, archivedAt])
   @@index([kind])
 }
 
@@ -497,8 +502,8 @@ model InboxItem {
   filedAsNodeId String?   @unique
   filedAsNode   Node?     @relation(fields: [filedAsNodeId], references: [id], onDelete: SetNull)
 
-  /// Set when an idea is thrown away without becoming a node.
-  discardedAt DateTime?
+  /// Set when an idea is set aside without becoming a node. It can be restored.
+  archivedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

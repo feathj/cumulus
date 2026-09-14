@@ -106,6 +106,46 @@ describe('getClusterBoard', () => {
     expect(board.recentlyCompleted[0]?.completedAt).toBeInstanceOf(Date);
   });
 
+  it('flags description text and the kind of link on each card', async () => {
+    const domain = await createDomain({ slug: 'personal' });
+    const cluster = await createCluster(domain.id, { slug: 'house' });
+    const card = (title: string, position: number, description: string | null = null) =>
+      createNode(cluster.id, { title, priority: Priority.NOW, position, description });
+
+    await card('Plain', 0);
+    await card('Notes', 1, 'Ask the neighbour which sealer he used.');
+    await card(
+      'Video',
+      2,
+      '[https://www.youtube.com/watch?v=yEpcimfWKrw](https://www.youtube.com/watch?v=yEpcimfWKrw "smartCard-inline")',
+    );
+    const shop = await card('Shop', 3);
+    await testDb.attachment.create({
+      data: { nodeId: shop.id, name: 'Lantern', url: 'https://www.amazon.com/dp/B0BW8FXWFY' },
+    });
+    const photo = await card('Photo', 4);
+    await testDb.attachment.create({
+      data: {
+        nodeId: photo.id,
+        name: 'IMG_4902.jpg',
+        url: 'https://trello.com/1/cards/abc/attachments/def/download/IMG_4902.jpg',
+        mimeType: 'image/jpeg',
+        byteSize: 2400500,
+      },
+    });
+
+    const board = await getClusterBoard(testDb, 'personal', 'house');
+
+    expect(board.tiers.NOW.map((node) => [node.title, node.hasText, node.link])).toEqual([
+      ['Plain', false, null],
+      ['Notes', true, null],
+      ['Video', false, 'youtube'],
+      ['Shop', false, 'link'],
+      ['Photo', false, null],
+    ]);
+    expect(board.tiers.NOW[4]?.attachmentCount).toBe(1);
+  });
+
   it('only finds a cluster inside the named domain', async () => {
     const personal = await createDomain({ slug: 'personal' });
     await createDomain({ slug: 'work' });

@@ -33,7 +33,9 @@ import Typography from '@mui/material/Typography';
 import type { Priority } from '@prisma/client';
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
+import { CardSignals } from '@/components/card-signals';
 import { useDomainPalette } from '@/components/domain-theme';
 import { findCard, moveCard, PRIORITIES } from '@/lib/board';
 import type { CardSlot, Tiers } from '@/lib/board';
@@ -105,9 +107,10 @@ export function CardBoard({ domainSlug, clusterSlug }: { domainSlug: string; clu
   const boardOptions = trpc.cluster.board.queryOptions({ domainSlug, clusterSlug });
   const { data: board } = useSuspenseQuery(boardOptions);
   const move = useMutation(trpc.node.move.mutationOptions());
+  const restore = useMutation(trpc.node.restore.mutationOptions());
 
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [moveFailed, setMoveFailed] = useState(false);
+  const [shelf, setShelf] = useState<'completed' | 'archived' | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   // Drag events can arrive faster than React re-renders, so handlers read the
   // latest drag state from here rather than from a stale render.
@@ -148,7 +151,7 @@ export function CardBoard({ domainSlug, clusterSlug }: { domainSlug: string; clu
       {
         onError: () => {
           if (previous) queryClient.setQueryData(boardOptions.queryKey, previous);
-          setMoveFailed(true);
+          setFailure('That move didn’t save, so the card went back.');
         },
         onSettled: () => {
           pendingMoves.current--;
@@ -158,6 +161,21 @@ export function CardBoard({ domainSlug, clusterSlug }: { domainSlug: string; clu
             void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
           }
           void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id }) });
+        },
+      },
+    );
+  };
+
+  // Archiving happens in the card panel; the board only brings cards back.
+  const restoreCard = (node: BoardNode) => {
+    restore.mutate(
+      { id: node.id },
+      {
+        onError: () => setFailure(`${node.title} couldn’t be restored.`),
+        onSettled: () => {
+          void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
+          void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+          void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
         },
       },
     );
@@ -305,76 +323,142 @@ export function CardBoard({ domainSlug, clusterSlug }: { domainSlug: string; clu
         </DragOverlay>
       </DndContext>
 
-      {board.recentlyCompleted.length > 0 && (
+      {(board.recentlyCompleted.length > 0 || board.archived.length > 0) && (
         <Box sx={{ flex: '0 0 auto', mt: 2, pt: 1.25, borderTop: `1px solid ${neutral.line}` }}>
-          <ButtonBase
-            onClick={() => setShowCompleted((shown) => !shown)}
-            aria-expanded={showCompleted}
-            sx={{
-              fontSize: 9.5,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'text.secondary',
-              '&:hover': { color: neutral.text },
-            }}
-          >
-            {showCompleted ? 'Hide' : 'Show'} recently completed · {board.recentlyCompleted.length}
-          </ButtonBase>
-          {showCompleted && (
-            <Box
-              component="ul"
-              sx={{
-                listStyle: 'none',
-                m: 0,
-                mt: 1,
-                p: 0,
-                maxHeight: 180,
-                overflowY: 'auto',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: 0.75,
-              }}
-            >
+          <Box sx={{ display: 'flex', gap: 2.5 }}>
+            {board.recentlyCompleted.length > 0 && (
+              <ButtonBase
+                onClick={() => setShelf((open) => (open === 'completed' ? null : 'completed'))}
+                aria-expanded={shelf === 'completed'}
+                sx={shelfToggleSx}
+              >
+                {shelf === 'completed' ? 'Hide' : 'Show'} recently completed · {board.recentlyCompleted.length}
+              </ButtonBase>
+            )}
+            {board.archived.length > 0 && (
+              <ButtonBase
+                onClick={() => setShelf((open) => (open === 'archived' ? null : 'archived'))}
+                aria-expanded={shelf === 'archived'}
+                sx={shelfToggleSx}
+              >
+                {shelf === 'archived' ? 'Hide' : 'Show'} archived · {board.archived.length}
+              </ButtonBase>
+            )}
+          </Box>
+          {shelf === 'completed' && board.recentlyCompleted.length > 0 && (
+            <ShelfList>
               {board.recentlyCompleted.map((node) => (
                 <li key={node.id}>
-                  <ButtonBase
-                    onClick={() => select(node.id)}
-                    sx={{
-                      width: '100%',
-                      justifyContent: 'space-between',
-                      gap: 1.5,
-                      px: 1.5,
-                      py: 1,
-                      textAlign: 'left',
-                      border: `1px solid ${oklch(0.234, 0.01, 265)}`,
-                      borderRadius: 1,
-                      bgcolor: oklch(0.149, 0.008, 265),
-                    }}
-                  >
-                    <Typography
-                      component="span"
-                      sx={{ fontSize: 13.5, color: oklch(0.633, 0.008, 265), textDecoration: 'line-through' }}
-                    >
+                  <ButtonBase onClick={() => select(node.id)} sx={{ ...shelfRowSx, width: '100%' }}>
+                    <Typography component="span" sx={{ ...shelfTitleSx, textDecoration: 'line-through' }}>
                       {node.title}
                     </Typography>
-                    <Typography component="span" sx={{ fontSize: 9.5, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                    <Typography component="span" sx={shelfDateSx}>
                       {node.completedAt ? formatDay(node.completedAt) : ''}
                     </Typography>
                   </ButtonBase>
                 </li>
               ))}
-            </Box>
+            </ShelfList>
+          )}
+          {shelf === 'archived' && board.archived.length > 0 && (
+            <ShelfList>
+              {board.archived.map((node) => (
+                <Box component="li" key={node.id} sx={{ ...shelfRowSx, py: 0.5, pr: 0.5 }}>
+                  <ButtonBase
+                    onClick={() => select(node.id)}
+                    sx={{ flex: 1, minWidth: 0, justifyContent: 'space-between', gap: 1.5, py: 0.5, textAlign: 'left' }}
+                  >
+                    <Typography component="span" sx={shelfTitleSx}>
+                      {node.title}
+                    </Typography>
+                    <Typography component="span" sx={shelfDateSx}>
+                      {node.archivedAt ? formatDay(node.archivedAt) : ''}
+                    </Typography>
+                  </ButtonBase>
+                  <ButtonBase
+                    onClick={() => restoreCard(node)}
+                    disabled={restore.isPending}
+                    aria-label={`Restore ${node.title}`}
+                    sx={{
+                      fontSize: 11,
+                      color: neutral.muted,
+                      border: `1px solid ${neutral.line}`,
+                      borderRadius: 0.75,
+                      px: 1.1,
+                      py: 0.4,
+                      '&:hover': { color: neutral.text, borderColor: neutral.lineStrong },
+                    }}
+                  >
+                    Restore
+                  </ButtonBase>
+                </Box>
+              ))}
+            </ShelfList>
           )}
         </Box>
       )}
 
       <Snackbar
-        open={moveFailed}
+        open={Boolean(failure)}
         autoHideDuration={4000}
-        onClose={() => setMoveFailed(false)}
+        onClose={() => setFailure(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        message="That move didn’t save, so the card went back."
+        message={failure}
       />
+    </Box>
+  );
+}
+
+const shelfToggleSx = {
+  fontSize: 9.5,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'text.secondary',
+  '&:hover': { color: neutral.text },
+} as const;
+
+const shelfRowSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 1.5,
+  px: 1.5,
+  py: 1,
+  textAlign: 'left',
+  border: `1px solid ${oklch(0.234, 0.01, 265)}`,
+  borderRadius: 1,
+  bgcolor: oklch(0.149, 0.008, 265),
+} as const;
+
+const shelfTitleSx = {
+  fontSize: 13.5,
+  color: oklch(0.633, 0.008, 265),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+} as const;
+
+const shelfDateSx = { fontSize: 9.5, color: 'text.secondary', whiteSpace: 'nowrap' } as const;
+
+/** The cards tucked below the board: recently completed, or archived. */
+function ShelfList({ children }: { children: ReactNode }) {
+  return (
+    <Box
+      component="ul"
+      sx={{
+        listStyle: 'none',
+        m: 0,
+        mt: 1,
+        p: 0,
+        maxHeight: 180,
+        overflowY: 'auto',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        gap: 0.75,
+      }}
+    >
+      {children}
     </Box>
   );
 }
@@ -540,6 +624,7 @@ function CardFace({ node, selected, dotColor }: { node: BoardNode; selected: boo
           </Typography>
         )}
       </Box>
+      <CardSignals hasText={node.hasText} link={node.link} color={neutral.muted} mt="4px" />
     </>
   );
 }

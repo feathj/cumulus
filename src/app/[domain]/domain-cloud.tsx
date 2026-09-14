@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 
 import { CloudCanvas } from '@/components/cloud/cloud-canvas';
-import { CloudHint } from '@/components/cloud/cloud-hint';
 import { hash01, singleRingRadius } from '@/components/cloud/geometry';
 import type { CloudHub, CloudOrb } from '@/components/cloud/types';
 import { useDomainPalette } from '@/components/domain-theme';
@@ -18,6 +17,8 @@ import { plural } from '@/lib/format';
 import { attention } from '@/lib/palette';
 import type { MemoryStats } from '@/server/services/clusters';
 import { useTRPC } from '@/trpc/client';
+
+import { NewClusterButton } from './new-cluster-button';
 
 const HUB_RADIUS = 54;
 const ORB_GAP = 16;
@@ -99,7 +100,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
         />
       ) : (
         <Typography sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'text.secondary' }}>
-          No clusters in {title} yet.
+          No clusters in {title} yet. Add one with the + below.
         </Typography>
       )}
 
@@ -111,7 +112,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
         ))}
       </Box>
 
-      <CloudHint>click to open · drag to fling · scroll to zoom</CloudHint>
+      <NewClusterButton domainSlug={domainSlug} />
     </Box>
   );
 }

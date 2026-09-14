@@ -4,10 +4,11 @@ See [REQUIREMENTS.md](REQUIREMENTS.md) for what this is and where it's going.
 
 A prototype of the UI is in place: domain and cluster clouds (Sigma.js with
 d3-force physics), the card board, and the memory view, over a tRPC API and
-service layer, with Vitest against real Postgres. The first write path is
+service layer, with Vitest against real Postgres. The first write paths are
 there too: dragging cards on the board to reorder them or change their
-priority. Inbox, focus, journal, the remaining writes and the MCP server are
-still to come.
+priority; capturing ideas from the header and refining, filing or archiving
+them in the inbox; and archiving and restoring cards. Focus, journal, the
+remaining writes and the MCP server are still to come.
 
 ## Local setup
 
@@ -50,21 +51,49 @@ every run — creating it if needed — and empties every table between tests.
 | Route | View |
 | --- | --- |
 | `/` | Redirects to the first domain |
-| `/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards |
+| `/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards. The + in the corner adds a cluster |
+| `/[domain]/inbox` | Inbox: refine a capture, file it into a cluster as a card, or archive it |
 | `/[domain]/[cluster]` | Cluster cloud: open cards in rings (now innermost), plus a memory orb |
-| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed below. Drag to reorder or reprioritize |
+| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed and archived below. Drag to reorder or reprioritize |
 | `/[domain]/[cluster]/memory` | Memory: Knowledge (what's believed now) and Timeline (how it got there) |
+
+Every domain page has a capture box in the header: type, press Enter, and the
+idea lands in that domain's inbox. `/` focuses it from anywhere that isn't a
+text field. Filing suggests the first line as the card title and the rest as
+its description, and puts the card at the end of the chosen priority.
+
+Cards on the board and orbs in the cluster cloud show small icons when there's
+more inside: lines of text when the description says something besides its
+links, and a link icon when the description or a link attachment has a URL —
+YouTube's play button if any of them is a video. Files uploaded to Trello are
+stored as URLs but have a MIME type, so they count as attachments, not links.
+The icon paths live in `src/lib/icons.ts` so the cloud's canvas can draw the
+same shapes as the board.
+
+A new cluster's slug comes from its name, skipping any slug already taken —
+archived clusters included — and the domain's own page names (`inbox`,
+`focus`, `journal`), which a cluster would otherwise hide. **Archive cluster**,
+at the right of a cluster's toolbar, asks first, then returns to the domain
+cloud with an Undo. An archived cluster's cards, notes and memory are kept but
+drop out of every count.
+
+Confirmations like these go to one snackbar per domain (`NoticeProvider` in
+`src/components/notice.tsx`), so an Undo outlives the drawer or page that
+offered it.
 
 Any cluster view takes `?node=<id>` to open a card's detail drawer; it's set
 with the History API, so selecting a card doesn't round-trip to the server.
-Memory takes `#entry-<id>` / `#event-<id>` to jump to and flash a row.
+The drawer is where a card is archived (with Undo) or restored. An archived card
+leaves the board, the cloud, the counts and the focus block, but keeps its
+notes, attachments and memory. Memory takes `#entry-<id>` / `#event-<id>` to
+jump to and flash a row.
 
 ## How the code is laid out
 
 ```
 src/
   app/                 App Router: layouts, pages, and the tRPC route handler
-    [domain]/          domain shell and cloud
+    [domain]/          domain shell (with the capture box), cloud, inbox/
       [cluster]/       cluster toolbar, card drawer, cloud, cards/, memory/
   components/
     cloud/             the physics cloud: Sigma renders, d3-force moves
@@ -78,7 +107,7 @@ src/
     db.ts              the app's Prisma client
   test/                Vitest setup, the test database, row factories
 scripts/import/        real-data importer (run with tsx, outside Next)
-prisma/                schema, migration, mockup seed
+prisma/                schema, migrations, mockup seed
 ```
 
 **Rules live in services, not routers.** The web UI won't be the only thing
@@ -258,16 +287,24 @@ UI supports drag-to-reorder. `layoutX` / `layoutY` on `Cluster`, `Node` and
 `MemoryEntry` persist where I dragged a bubble so the cloud simulation resumes
 rather than re-seeding.
 
-**Nothing is hard-deleted by default.** `completedAt`, `archivedAt`,
-`discardedAt` and `filedAt` are timestamps rather than booleans, which is what
-"recently closed" reads from. Memory entries use `status` instead, since each
+**Nothing is hard-deleted by default.** `completedAt`, `archivedAt` and
+`filedAt` are timestamps rather than booleans, which is what "recently closed"
+and "archived" read from. Domains, clusters, cards and inbox items all archive
+the same way. A filed inbox item stays behind, pointing at the card it became. Memory entries use `status` instead, since each
 transition is also recorded as a revision.
 
 ## Known gaps
 
-- Moving cards on the board is the only write so far: no editing, no review
-  actions, no reordering in the focus block. Inbox, focus and journal sections
-  are placeholders.
+- Writes so far are card moves, inbox capture/refine/file/archive, and card
+  archive/restore. Cards still can't be edited or completed, memory has no
+  review actions, and the focus and journal sections are placeholders.
+- The board and inbox list only the 20 most recently archived items. Anything
+  older is still in the database but has no way back in the UI yet.
+- Archiving a card drops it from the focus block for good; restoring doesn't
+  put it back.
+- There's no list of archived clusters yet. Once the Undo notice is gone,
+  bringing one back means calling `cluster.restore` with its id. Clusters
+  can't be renamed either.
 - A card move renumbers its siblings too, which bumps their `updatedAt`. Two
   moves in the same cluster from different tabs at once could interleave; one
   person on one laptop makes that unlikely, but it isn't locked against.

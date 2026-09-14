@@ -1,12 +1,20 @@
 import { MemoryEntryStatus, Priority } from '@prisma/client';
 import type { NodeKind, Prisma } from '@prisma/client';
 
-import { NotFoundError } from '../errors';
+import { findUrls, hasProse, linkKind } from '@/lib/card-links';
+import type { LinkKind } from '@/lib/card-links';
+import { slugify, uniqueSlug } from '@/lib/slug';
+
+import { DomainError, NotFoundError } from '../errors';
 import { getDomain } from './domains';
+import { withTransaction } from './types';
 import type { Db } from './types';
 
 /** How many checked-off cards the board shows beneath the open tiers. */
 export const RECENTLY_COMPLETED_LIMIT = 10;
+
+/** How many archived cards the board offers to restore. */
+export const ARCHIVED_LIMIT = 20;
 
 export interface ClusterRef {
   id: string;
@@ -58,7 +66,7 @@ export async function listClusters(db: Db, domainSlug: string): Promise<ClusterS
         position: true,
         layoutX: true,
         layoutY: true,
-        _count: { select: { nodes: { where: { completedAt: null } } } },
+        _count: { select: { nodes: { where: { completedAt: null, archivedAt: null } } } },
       },
     }),
     db.memoryEntry.findMany({
@@ -104,8 +112,11 @@ const boardNodeSelect = {
   priority: true,
   position: true,
   completedAt: true,
+  archivedAt: true,
   createdAt: true,
   updatedAt: true,
+  // Links only. Files uploaded to Trello arrive as URLs too, but with a MIME type.
+  attachments: { where: { url: { not: null }, mimeType: null }, select: { url: true } },
   _count: {
     select: {
       notes: true,
@@ -123,12 +134,17 @@ export interface BoardNode {
   priority: Priority;
   position: number;
   completedAt: Date | null;
+  archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   noteCount: number;
   attachmentCount: number;
   /** Active memory entries owned by this card. */
   memoryCount: number;
+  /** Whether the description says something besides the links in it. */
+  hasText: boolean;
+  /** The kind of link in the description or link attachments; `youtube` if any is a video. */
+  link: LinkKind | null;
 }
 
 export interface ClusterBoard {
@@ -137,14 +153,22 @@ export interface ClusterBoard {
   tiers: Record<Priority, BoardNode[]>;
   /** Checked-off cards, most recently completed first. */
   recentlyCompleted: BoardNode[];
+  /** Archived cards, most recently archived first. */
+  archived: BoardNode[];
 }
 
 function toBoardNode({
   _count,
+  attachments,
   ...node
 }: Prisma.NodeGetPayload<{ select: typeof boardNodeSelect }>): BoardNode {
   return {
     ...node,
+    hasText: hasProse(node.description),
+    link: linkKind([
+      ...findUrls(node.description ?? ''),
+      ...attachments.flatMap((attachment) => (attachment.url ? [attachment.url] : [])),
+    ]),
     noteCount: _count.notes,
     attachmentCount: _count.attachments,
     memoryCount: _count.memoryEntries,
@@ -159,16 +183,22 @@ export async function getClusterBoard(
 ): Promise<ClusterBoard> {
   const cluster = await getCluster(db, domainSlug, clusterSlug);
 
-  const [open, completed] = await Promise.all([
+  const [open, completed, archived] = await Promise.all([
     db.node.findMany({
-      where: { clusterId: cluster.id, completedAt: null },
+      where: { clusterId: cluster.id, completedAt: null, archivedAt: null },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: boardNodeSelect,
     }),
     db.node.findMany({
-      where: { clusterId: cluster.id, completedAt: { not: null } },
+      where: { clusterId: cluster.id, completedAt: { not: null }, archivedAt: null },
       orderBy: { completedAt: 'desc' },
       take: RECENTLY_COMPLETED_LIMIT,
+      select: boardNodeSelect,
+    }),
+    db.node.findMany({
+      where: { clusterId: cluster.id, archivedAt: { not: null } },
+      orderBy: { archivedAt: 'desc' },
+      take: ARCHIVED_LIMIT,
       select: boardNodeSelect,
     }),
   ]);
@@ -180,5 +210,82 @@ export async function getClusterBoard(
   };
   for (const node of open) tiers[node.priority].push(toBoardNode(node));
 
-  return { cluster, tiers, recentlyCompleted: completed.map((node) => toBoardNode(node)) };
+  return {
+    cluster,
+    tiers,
+    recentlyCompleted: completed.map((node) => toBoardNode(node)),
+    archived: archived.map((node) => toBoardNode(node)),
+  };
+}
+
+/**
+ * Domain-level routes a cluster slug would be hidden behind: a cluster at
+ * `/personal/inbox` would never be reachable, because the inbox is there.
+ */
+const RESERVED_SLUGS = ['inbox', 'focus', 'journal'];
+
+/**
+ * A new, empty cluster at the end of its domain, with a slug made from its
+ * name. Names are unique within a domain regardless of case, and archived
+ * clusters keep theirs, so reusing one is refused rather than silently renamed.
+ */
+export async function createCluster(
+  db: Db,
+  { domainSlug, title }: { domainSlug: string; title: string },
+): Promise<ClusterRef> {
+  const name = title.trim().replace(/\s+/g, ' ');
+  if (!name) throw new DomainError('BAD_REQUEST', 'A cluster needs a name.');
+
+  return withTransaction(db, async (tx) => {
+    const domain = await getDomain(tx, domainSlug);
+    const existing = await tx.cluster.findMany({
+      where: { domainId: domain.id },
+      select: { slug: true, title: true, position: true, archivedAt: true },
+    });
+
+    const clash = existing.find((cluster) => cluster.title.toLowerCase() === name.toLowerCase());
+    if (clash) {
+      throw new DomainError(
+        'CONFLICT',
+        clash.archivedAt
+          ? `An archived cluster is already called "${clash.title}".`
+          : `There's already a cluster called "${clash.title}".`,
+      );
+    }
+
+    const taken = new Set([...RESERVED_SLUGS, ...existing.map((cluster) => cluster.slug)]);
+    return tx.cluster.create({
+      data: {
+        domainId: domain.id,
+        slug: uniqueSlug(slugify(name, 'cluster'), taken),
+        title: name,
+        position: Math.max(-1, ...existing.map((cluster) => cluster.position)) + 1,
+      },
+      select: { id: true, slug: true, title: true },
+    });
+  });
+}
+
+/**
+ * Puts a whole cluster away: it leaves the domain cloud and every count, and
+ * its cards leave the focus block. Cards, notes and memory are kept, so it can
+ * be restored. Archiving an archived cluster changes nothing.
+ */
+export async function archiveCluster(db: Db, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const cluster = await tx.cluster.findUnique({ where: { id }, select: { archivedAt: true } });
+    if (!cluster) throw new NotFoundError('Cluster', id);
+    if (cluster.archivedAt) return;
+
+    await tx.cluster.update({ where: { id }, data: { archivedAt: new Date() } });
+    await tx.focusItem.deleteMany({ where: { node: { clusterId: id } } });
+  });
+}
+
+/** Brings an archived cluster back where it was in the domain. Its cards don't rejoin the focus block. */
+export async function restoreCluster(db: Db, id: string): Promise<void> {
+  const cluster = await db.cluster.findUnique({ where: { id }, select: { archivedAt: true } });
+  if (!cluster) throw new NotFoundError('Cluster', id);
+  if (!cluster.archivedAt) return;
+  await db.cluster.update({ where: { id }, data: { archivedAt: null } });
 }

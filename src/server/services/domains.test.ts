@@ -30,7 +30,7 @@ describe('listDomains', () => {
     await testDb.focusItem.create({ data: { domainId: domain.id, nodeId: open.id, position: 0 } });
     await testDb.inboxItem.create({ data: { domainId: domain.id, text: 'Waiting' } });
     await testDb.inboxItem.create({
-      data: { domainId: domain.id, text: 'Tossed', discardedAt: new Date() },
+      data: { domainId: domain.id, text: 'Tossed', archivedAt: new Date() },
     });
     await testDb.inboxItem.create({
       data: { domainId: domain.id, text: 'Filed', filedAt: new Date() },

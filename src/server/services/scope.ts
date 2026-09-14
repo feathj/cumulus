@@ -14,6 +14,13 @@ export function eventsInCluster(clusterId: string): Prisma.MemoryEventWhereInput
   return { OR: [{ clusterId }, { node: { clusterId } }] };
 }
 
+/** Memory in a domain's live clusters; an archived cluster's memory goes quiet with it. */
 export function entriesInDomain(domainId: string): Prisma.MemoryEntryWhereInput {
-  return { OR: [{ domainId }, { cluster: { domainId } }, { node: { cluster: { domainId } } }] };
+  return {
+    OR: [
+      { domainId },
+      { cluster: { domainId, archivedAt: null } },
+      { node: { cluster: { domainId, archivedAt: null } } },
+    ],
+  };
 }

@@ -14,6 +14,7 @@ import { useDomainPalette } from '@/components/domain-theme';
 import { srOnlyUntilFocused } from '@/lib/a11y';
 import { oklch, oklcha } from '@/lib/color';
 import { plural } from '@/lib/format';
+import { cardIcons } from '@/lib/icons';
 import { attention, neutral } from '@/lib/palette';
 import { useTRPC } from '@/trpc/client';
 
@@ -68,6 +69,7 @@ export function ClusterCloud({ domainSlug, clusterSlug }: { domainSlug: string; 
               : node.memoryCount
                 ? plural(node.memoryCount, 'memory', 'memories')
                 : null,
+          icons: cardIcons(node),
           radius: tier.radius,
           ring,
           // Neighbouring rings drift opposite ways.

@@ -19,6 +19,9 @@ import Graph from 'graphology';
 import type Sigma from 'sigma';
 import type { NodeHoverDrawingFunction, NodeLabelDrawingFunction } from 'sigma/rendering';
 
+import { CARD_ICONS } from '@/lib/icons';
+import type { CardIconName } from '@/lib/icons';
+
 import { ellipseAxes, hash01 } from './geometry';
 import type { CloudHub, CloudOrb } from './types';
 import { wrapText } from './wrap';
@@ -40,6 +43,10 @@ const THROW = 0.6;
 const CLICK_TOLERANCE_PX = 5;
 /** Below this on-screen radius a label wouldn't be readable, so it isn't drawn. */
 const MIN_LABEL_RADIUS_PX = 16;
+/** Icons need a little more room than text before they're worth drawing. */
+const MIN_ICON_RADIUS_PX = 22;
+/** Space between the text above and the icon row. */
+const ICON_ROW_GAP = 5;
 /** Space around the outermost orbit when fitting the camera. */
 const MARGIN = 36;
 
@@ -53,6 +60,7 @@ interface OrbAttributes {
   labelColor: string;
   caption: string;
   captionColor: string;
+  icons: CardIconName[];
   serif: boolean;
   bold: boolean;
   hub: boolean;
@@ -136,6 +144,38 @@ function seedPositions(orbs: CloudOrb[], axes: Axes): SimOrb[] {
   );
 }
 
+/** Parsed once per icon; created on first draw, since `Path2D` only exists in the browser. */
+const iconPaths = new Map<CardIconName, Path2D>();
+
+/** A centred row of icons, each `size` pixels square. */
+function drawIcons(
+  context: CanvasRenderingContext2D,
+  icons: CardIconName[],
+  centerX: number,
+  centerY: number,
+  size: number,
+  color: string,
+) {
+  const gap = size * 0.45;
+  let x = centerX - (icons.length * size + (icons.length - 1) * gap) / 2;
+  for (const name of icons) {
+    const icon = CARD_ICONS[name];
+    let path = iconPaths.get(name);
+    if (!path) {
+      path = new Path2D(icon.path);
+      iconPaths.set(name, path);
+    }
+    context.save();
+    context.translate(x, centerY - size / 2);
+    // Icon paths are drawn on a 24-unit grid.
+    context.scale(size / 24, size / 24);
+    context.fillStyle = icon.color ?? color;
+    context.fill(path, icon.evenOdd ? 'evenodd' : 'nonzero');
+    context.restore();
+    x += size + gap;
+  }
+}
+
 function orbitForce(getAxes: () => Axes): Force<SimOrb, undefined> {
   let nodes: SimOrb[] = [];
   const force = (alpha: number) => {
@@ -213,6 +253,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     labelColor: hub.labelColor,
     caption: '',
     captionColor: hub.labelColor,
+    icons: [],
     serif: false,
     bold: true,
     hub: true,
@@ -232,6 +273,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
       labelColor: orb.labelColor,
       caption: orb.caption ?? '',
       captionColor: orb.captionColor,
+      icons: orb.icons ?? [],
       serif: orb.serif,
       bold: orb.bold,
       hub: false,
@@ -255,11 +297,14 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     const box = orb.size * 1.4;
     const caption = orb.caption && orb.size >= 26 ? orb.caption.toUpperCase() : '';
     const captionSize = Math.max(8, Math.min(11, orb.size * 0.17));
-    const available = box - (caption ? captionSize + 6 : 0);
+    const icons = orb.icons?.length && orb.size >= MIN_ICON_RADIUS_PX ? orb.icons : [];
+    const iconSize = Math.max(9, Math.min(13, orb.size * 0.2));
+    const iconRow = icons.length ? iconSize + ICON_ROW_GAP : 0;
+    const available = box - (caption ? captionSize + 6 : 0) - iconRow;
     const family = orb.serif ? fonts.serif : fonts.sans;
     const weight = orb.bold ? 500 : 400;
 
-    const cacheKey = `${orb.label}|${Math.round(orb.size)}|${family}|${weight}|${caption ? 1 : 0}`;
+    const cacheKey = `${orb.label}|${Math.round(orb.size)}|${family}|${weight}|${caption ? 1 : 0}|${icons.length ? 1 : 0}`;
     let fit = fitCache.get(cacheKey);
     if (!fit) {
       let fontSize = Math.max(9, Math.min(18, orb.size * 0.3));
@@ -277,7 +322,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     }
 
     const lineHeight = fit.fontSize * 1.25;
-    const blockHeight = fit.lines.length * lineHeight + (caption ? captionSize + 6 : 0);
+    const blockHeight = fit.lines.length * lineHeight + (caption ? captionSize + 6 : 0) + iconRow;
     let y = orb.y - blockHeight / 2 + lineHeight / 2;
 
     context.save();
@@ -289,10 +334,22 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
       context.fillText(line, orb.x, y);
       y += lineHeight;
     }
+    let bottom = y - lineHeight / 2;
     if (caption) {
       context.font = `600 ${captionSize}px ${fonts.sans}`;
       context.fillStyle = orb.captionColor ?? orb.labelColor ?? '#ffffff';
-      context.fillText(caption, orb.x, y - lineHeight / 2 + 6 + captionSize / 2);
+      context.fillText(caption, orb.x, bottom + 6 + captionSize / 2);
+      bottom += 6 + captionSize;
+    }
+    if (icons.length) {
+      drawIcons(
+        context,
+        icons,
+        orb.x,
+        bottom + ICON_ROW_GAP + iconSize / 2,
+        iconSize,
+        orb.captionColor ?? orb.labelColor ?? '#ffffff',
+      );
     }
     context.restore();
   };
