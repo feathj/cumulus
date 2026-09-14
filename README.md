@@ -2,9 +2,11 @@
 
 See [REQUIREMENTS.md](REQUIREMENTS.md) for what this is and where it's going.
 
-Right now the repo is the data layer only: Prisma schema, the initial migration,
-a seed built from the design mockup, and an importer for real data. Next.js,
-tRPC, MUI, Sigma.js and the MCP server are not wired up yet.
+The foundation is in place: a Next.js App Router app with MUI, a tRPC API over a
+service layer, Vitest against a real Postgres, the Prisma schema, a seed built
+from the design mockup, and an importer for real data. The home page is a
+placeholder that proves the stack end to end; the domain tabs, card board,
+memory views, Sigma.js cloud and MCP server are still to come.
 
 ## Local setup
 
@@ -21,17 +23,72 @@ npm install
 npm run db:migrate                  # applies prisma/migrations
 npm run db:seed                     # mockup data: ~200 nodes across three domains
 npm run db:import                   # ...or real data instead; see below
+npm run dev                         # http://localhost:3000
 ```
+
+`npm test` needs `TEST_DATABASE_URL` in `.env` (see `.env.example`). It must
+point somewhere other than the development database: the suite migrates it on
+every run — creating it if needed — and empties every table between tests.
 
 | Command | What it does |
 | --- | --- |
+| `npm run dev` | Next.js dev server (Turbopack) |
+| `npm run build` / `npm start` | Production build / serve it |
+| `npm test` / `npm run test:watch` | Vitest, once / in watch mode |
+| `npm run lint` | ESLint: Next.js rules plus type-checked typescript-eslint |
+| `npm run typecheck` | Generate Next's route types, then `tsc --noEmit` |
 | `npm run db:migrate` | Create/apply migrations from schema changes |
 | `npm run db:deploy` | Apply existing migrations without generating new ones (production) |
 | `npm run db:reset` | Drop, re-migrate, re-seed |
 | `npm run db:seed` | Wipe and load the mockup data (refuses to run with `NODE_ENV=production`) |
 | `npm run db:import` | Wipe and load real data from `data/` (same production guard) |
 | `npm run db:studio` | Prisma Studio |
-| `npm run lint` / `npm run typecheck` | ESLint (type-checked rules) / `tsc --noEmit` |
+
+## How the code is laid out
+
+```
+src/
+  app/                 App Router: layouts, pages, and the tRPC route handler
+  trpc/                tRPC <-> React Query glue for Client and Server Components
+  server/
+    services/          the rules: plain functions over a Prisma client
+    trpc/              routers — validate input, call a service, nothing more
+    errors.ts          DomainError, which services throw
+    db.ts              the app's Prisma client
+  test/                Vitest setup, the test database, row factories
+scripts/import/        real-data importer (run with tsx, outside Next)
+prisma/                schema, migration, mockup seed
+```
+
+**Rules live in services, not routers.** The web UI won't be the only thing
+writing data — the MCP server will call the same services. So invariants (a
+revision on every memory change, resolved `[[links]]`, one memory owner) belong
+in `src/server/services`, and a router stays a line or two of input validation
+and a service call.
+
+**Services take the database as an argument.** Each function's first parameter
+is a `Db`: the Prisma client or an open transaction. Callers can compose several
+services in one `db.$transaction`, and tests pass the test database without any
+module mocking.
+
+**Services throw `DomainError`, not `TRPCError`.** A middleware in
+`src/server/trpc/init.ts` maps a `NotFoundError` to `NOT_FOUND` and so on, so
+services never import tRPC. Anything else becomes `INTERNAL_SERVER_ERROR`.
+
+**Server Components prefetch, Client Components read.** A page awaits
+`getQueryClient().prefetchQuery(trpc.x.queryOptions())` from `@/trpc/server` —
+an in-process call, no HTTP — and wraps its children in `<HydrateClient>`. A
+Client Component then calls `useSuspenseQuery(useTRPC().x.queryOptions())` with
+the same options and gets the data without a refetch. superjson carries `Date`s
+across both hops. Pages that read the database call `connection()` first so
+they render per request rather than at build time.
+
+**Tests run against real Postgres.** No Prisma mocks: service tests exercise
+the actual queries. `src/test/global-setup.ts` runs `prisma migrate deploy`
+against `TEST_DATABASE_URL` once per run, every test starts from empty tables,
+and test files run one at a time because they share the database. Router tests
+use `createCaller` with the test database to check validation and error mapping
+without HTTP.
 
 ## Importing real data
 
@@ -160,15 +217,18 @@ transition is also recorded as a revision.
   them, so carry them over if the migration is ever regenerated.
 - A `FocusItem`'s node should belong to the same domain as the item. That
   invariant is cross-table and isn't enforced in the database; it belongs in the
-  tRPC layer.
+  service layer, with the focus-block write path.
 - Resolving `[[wiki links]]` in entry bodies into link rows, and writing a
-  `MemoryRevision` alongside every entry change, are the write path's job.
-  Links from entries to nodes aren't modelled yet.
+  `MemoryRevision` alongside every entry change, are the memory service's job
+  once it exists. Links from entries to nodes aren't modelled yet.
+- The API is read-only so far: domains, clusters, and a cluster's card board.
+- No auth. Cumulus runs on my laptop; add it before it runs anywhere else.
 - No subtasks. Trello checklists have no home — though the export didn't include
   checklist items anyway.
 - No full-text search over memory yet. Postgres `tsvector` over title,
   description and body is the likely first step.
 - Attachment bytes live on disk and aren't part of JSON export/import yet.
+- Still on Prisma 6. Prisma 7 is out; upgrading is its own piece of work.
 - `npm audit` reports a high-severity advisory in `deepmerge-ts`, reachable only
   through the Prisma CLI's config loader (dev-only, never in the runtime client).
   The only fix on offer downgrades `prisma` to 6.12, so it's being left alone.

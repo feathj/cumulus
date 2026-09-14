@@ -7,6 +7,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
@@ -15,20 +20,40 @@
     "db:seed": "prisma db seed",
     "db:import": "tsx scripts/import/index.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^6.16.1"
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^9.4.0",
+    "@mui/material-nextjs": "^9.4.0",
+    "@prisma/client": "^6.16.1",
+    "@tanstack/react-query": "^5.102.8",
+    "@trpc/client": "^11.18.0",
+    "@trpc/server": "^11.18.0",
+    "@trpc/tanstack-react-query": "^11.18.0",
+    "client-only": "^0.0.1",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1",
+    "superjson": "^2.2.6",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "dotenv": "^17.4.2",
     "eslint": "^9.35.0",
+    "eslint-config-next": "^16.3.5",
     "prisma": "^6.16.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.43.0",
+    "vitest": "^5.0.0",
     "yaml": "^2.9.1"
   }
 }

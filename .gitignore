@@ -2,6 +2,9 @@ node_modules/
 dist/
 .next/
 out/
+coverage/
+next-env.d.ts
+*.tsbuildinfo
 
 # Local environment — .env.example is the checked-in template
 .env
