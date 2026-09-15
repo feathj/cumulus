@@ -310,3 +310,41 @@ export async function restoreNode(db: Db, id: string): Promise<void> {
     });
   });
 }
+
+/**
+ * Checks a card off. It leaves its tier, closing the gap, and stays in the
+ * focus block, where it shows as done for the rest of the day. Checking off a
+ * checked-off card changes nothing.
+ */
+export async function completeNode(db: Db, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id },
+      select: { clusterId: true, priority: true, completedAt: true, archivedAt: true },
+    });
+    if (!node) throw new NotFoundError('Node', id);
+    if (node.completedAt) return;
+    if (node.archivedAt) throw new DomainError('CONFLICT', 'Restore that card before checking it off.');
+
+    await tx.node.update({ where: { id }, data: { completedAt: new Date() } });
+    await renumber(tx, await boardTier(tx, node.clusterId, node.priority, id), node.priority);
+  });
+}
+
+/** Un-checks a card. An unarchived one returns to the end of its tier. */
+export async function reopenNode(db: Db, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id },
+      select: { clusterId: true, priority: true, completedAt: true, archivedAt: true },
+    });
+    if (!node) throw new NotFoundError('Node', id);
+    if (!node.completedAt) return;
+
+    const tier = node.archivedAt ? [] : await boardTier(tx, node.clusterId, node.priority, id);
+    await tx.node.update({
+      where: { id },
+      data: { completedAt: null, ...(node.archivedAt ? {} : { position: tier.length }) },
+    });
+  });
+}

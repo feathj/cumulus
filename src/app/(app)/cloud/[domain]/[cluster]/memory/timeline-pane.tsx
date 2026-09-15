@@ -1,16 +1,20 @@
 'use client';
 
 import Box from '@mui/material/Box';
+import MuiLink from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import type { MemoryRevisionAction } from '@prisma/client';
+import Link from 'next/link';
 import { Fragment, useMemo } from 'react';
 
 import { useDomainPalette } from '@/components/domain-theme';
 import type { WikiLinkResolver } from '@/components/markdown';
+import { localNoon } from '@/lib/day';
 import { dayKey, formatDay, formatTime } from '@/lib/format';
 import { actionLabel, authorLabel, memoryTypeStyle } from '@/lib/memory-style';
 import { neutral } from '@/lib/palette';
-import type { ClusterMemory, MemoryChange, MemoryEventView } from '@/server/services/memory';
+import { dayPath } from '@/lib/routes';
+import type { ClusterMemory, JournalMention, MemoryChange, MemoryEventView } from '@/server/services/memory';
 
 import {
   EmptyNote,
@@ -25,7 +29,8 @@ import {
 
 type TimelineItem =
   | { kind: 'event'; at: Date; event: MemoryEventView }
-  | { kind: 'change'; at: Date; change: MemoryChange };
+  | { kind: 'change'; at: Date; change: MemoryChange }
+  | { kind: 'journal'; at: Date; journal: JournalMention };
 
 export interface TimelinePaneProps {
   memory: ClusterMemory;
@@ -48,6 +53,10 @@ export function TimelinePane({ memory, query, highlightId, onOpenEntry, resolveW
       ...memory.looseChanges
         .filter((change) => matches(change.entryTitle))
         .map((change) => ({ kind: 'change' as const, at: change.createdAt, change })),
+      // A journal is about a whole day, so it sits at midday.
+      ...memory.journal
+        .filter((journal) => matches(journal.body))
+        .map((journal) => ({ kind: 'journal' as const, at: localNoon(journal.day), journal })),
     ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
     const grouped: { key: string; date: Date; items: TimelineItem[] }[] = [];
@@ -83,6 +92,8 @@ export function TimelinePane({ memory, query, highlightId, onOpenEntry, resolveW
                   onOpenEntry={onOpenEntry}
                   resolveWikiLink={resolveWikiLink}
                 />
+              ) : item.kind === 'journal' ? (
+                <JournalRow key={`journal-${item.journal.day}`} journal={item.journal} resolveWikiLink={resolveWikiLink} />
               ) : (
                 <ChangeRow key={item.change.revisionId} change={item.change} onOpenEntry={onOpenEntry} />
               ),
@@ -166,6 +177,45 @@ function EventRow({
         </Box>
       )}
       <ChangeGroups changes={event.changes} onOpenEntry={onOpenEntry} />
+    </SpineRow>
+  );
+}
+
+/** A journal day that mentions this cluster or its cards, linking back to the day. */
+function JournalRow({ journal, resolveWikiLink }: { journal: JournalMention; resolveWikiLink: WikiLinkResolver }) {
+  const palette = useDomainPalette();
+
+  return (
+    <SpineRow
+      id={`journal-${journal.day}`}
+      highlighted={false}
+      marker={
+        <Box sx={{ width: 10, height: 12, borderRadius: '2px', border: `1.5px solid ${palette.accent}`, bgcolor: neutral.canvas }} />
+      }
+      meta={<Typography sx={{ ...overlineSx, color: palette.accent }}>Journal</Typography>}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flexWrap: 'wrap' }}>
+        <Typography component="h4" sx={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, color: neutral.text }}>
+          The day’s journal
+        </Typography>
+        <MuiLink component={Link} href={dayPath(journal.day)} sx={{ fontSize: 10.5 }}>
+          open the day →
+        </MuiLink>
+      </Box>
+      {journal.nodes.length > 0 && (
+        <Typography sx={{ ...metaTextSx, mt: 0.25 }}>
+          on {journal.nodes.length === 1 ? 'card' : 'cards'} · {journal.nodes.map((node) => node.title).join(', ')}
+        </Typography>
+      )}
+      <Box sx={{ mt: 1, maxWidth: '68ch' }}>
+        <Expandable
+          source={journal.body}
+          resolveWikiLink={resolveWikiLink}
+          threshold={320}
+          clippedHeight={96}
+          size="compact"
+        />
+      </Box>
     </SpineRow>
   );
 }

@@ -21,7 +21,7 @@ import { withAlpha } from '@/lib/color';
 import { formatDay, plural } from '@/lib/format';
 import { authorLabel, memoryTypeStyle } from '@/lib/memory-style';
 import { attention, neutral } from '@/lib/palette';
-import { clusterPath } from '@/lib/routes';
+import { clusterPath, todayPath } from '@/lib/routes';
 import type { NodeDetail, TransferredCard } from '@/server/services/nodes';
 import { useTRPC, useTRPCClient } from '@/trpc/client';
 
@@ -190,6 +190,56 @@ function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
   );
 }
 
+/** Puts an open card in its domain's focus block, or takes it out. */
+function FocusControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNotice }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const palette = useDomainPalette();
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
+    void queryClient.invalidateQueries({ queryKey: trpc.today.pathKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
+  };
+  const add = useMutation(trpc.focus.add.mutationOptions({ onSettled: refresh }));
+  const remove = useMutation(trpc.focus.remove.mutationOptions({ onSettled: refresh }));
+
+  if (!node.inFocus && (node.completedAt || node.archivedAt)) return null;
+
+  const toggle = () =>
+    node.inFocus
+      ? remove.mutate(
+          { id: node.id },
+          {
+            onSuccess: () => onNotice('Out of the focus block.'),
+            onError: () => onNotice('That card couldn’t be taken out of focus.'),
+          },
+        )
+      : add.mutate(
+          { id: node.id },
+          {
+            onSuccess: () => onNotice(`In the ${node.domain.title} focus block.`, { label: 'Open Today', href: todayPath }),
+            onError: () => onNotice('That card couldn’t join the focus block.'),
+          },
+        );
+
+  return (
+    <Button
+      size="small"
+      variant="outlined"
+      color="inherit"
+      disabled={add.isPending || remove.isPending}
+      onClick={toggle}
+      sx={{
+        color: node.inFocus ? palette.accent : neutral.muted,
+        borderColor: node.inFocus ? palette.border : neutral.lineStrong,
+      }}
+    >
+      {node.inFocus ? 'Remove from focus' : 'Add to focus'}
+    </Button>
+  );
+}
+
 /**
  * Another cluster for the card, in any domain. Picking one moves it straight
  * away, with Undo; the drawer stays on the card so you can see where it went.
@@ -303,6 +353,7 @@ function NodeDetailBody({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
       </Box>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.75 }}>
+        <FocusControl node={node} onNotice={onNotice} />
         <Button
           size="small"
           variant="outlined"

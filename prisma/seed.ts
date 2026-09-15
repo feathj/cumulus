@@ -936,6 +936,13 @@ const DOMAINS: DomainSeed[] = [
   },
 ];
 
+/** Daily routines, with the recent days each was done. */
+const ROUTINES: { title: string; done: string[] }[] = [
+  { title: 'Exercise', done: ['2026-09-07', '2026-09-08', '2026-09-09'] },
+  { title: 'Meditate', done: ['2026-09-08', '2026-09-09'] },
+  { title: 'Scripture study', done: ['2026-09-07', '2026-09-09'] },
+];
+
 /** Nodes queued into each domain's focus block, by `clusterSlug:title`. */
 const FOCUS: Record<string, string[]> = {
   work: ['ship:Token rotation grace window', 'bc:Runbook v3 review', 'admin:Expense report'],
@@ -1182,6 +1189,9 @@ async function main(): Promise<void> {
   // else cascades from Domain.
   await db.memoryEntry.deleteMany();
   await db.memoryEvent.deleteMany();
+  // The journal and routines span every domain, so they don't cascade either.
+  await db.journalEntry.deleteMany();
+  await db.routine.deleteMany();
   await db.domain.deleteMany();
 
   await seedMemory(GLOBAL_ENTRIES, [], {
@@ -1189,6 +1199,17 @@ async function main(): Promise<void> {
     clusterIds: new Map(),
     nodeIds: new Map(),
   });
+
+  // Journal text by day, gathered from every domain and written once they're all in.
+  const journalDays = new Map<
+    string,
+    {
+      title: string;
+      body: string;
+      nodeLinks: { nodeId: string; label: string }[];
+      clusterLinks: { clusterId: string; label: string }[];
+    }[]
+  >();
 
   for (const [domainIndex, domainSeed] of DOMAINS.entries()) {
     const domain = await db.domain.create({
@@ -1281,7 +1302,7 @@ async function main(): Promise<void> {
       });
     }
 
-    // Journal entries, with their [[wiki links]] resolved to real rows.
+    // Journal text, with its [[wiki links]] resolved against this domain's rows.
     for (const [iso, body] of Object.entries(domainSeed.journal)) {
       const clusterLinks: { clusterId: string; label: string }[] = [];
       const nodeLinks: { nodeId: string; label: string }[] = [];
@@ -1296,15 +1317,10 @@ async function main(): Promise<void> {
         if (clusterId) clusterLinks.push({ clusterId, label });
       }
 
-      await db.journalEntry.create({
-        data: {
-          domainId: domain.id,
-          entryDate: day(iso),
-          body,
-          ...(nodeLinks.length ? { nodeLinks: { create: nodeLinks } } : {}),
-          ...(clusterLinks.length ? { clusterLinks: { create: clusterLinks } } : {}),
-        },
-      });
+      journalDays.set(iso, [
+        ...(journalDays.get(iso) ?? []),
+        { title: domainSeed.title, body, nodeLinks, clusterLinks },
+      ]);
     }
 
     // Unfiled captures.
@@ -1319,6 +1335,35 @@ async function main(): Promise<void> {
     }
   }
 
+  // One journal entry per day. A day written in several domains gets each
+  // domain's text under its title, the way the migration merged them.
+  for (const [iso, sections] of journalDays) {
+    const body =
+      sections.length === 1
+        ? (sections[0]?.body ?? '')
+        : sections.map((section) => `## ${section.title}\n\n${section.body}`).join('\n\n');
+    const nodeLinks = sections.flatMap((section) => section.nodeLinks);
+    const clusterLinks = sections.flatMap((section) => section.clusterLinks);
+    await db.journalEntry.create({
+      data: {
+        entryDate: day(iso),
+        body,
+        ...(nodeLinks.length ? { nodeLinks: { create: nodeLinks } } : {}),
+        ...(clusterLinks.length ? { clusterLinks: { create: clusterLinks } } : {}),
+      },
+    });
+  }
+
+  for (const [position, routine] of ROUTINES.entries()) {
+    await db.routine.create({
+      data: {
+        title: routine.title,
+        position,
+        checks: { create: routine.done.map((iso) => ({ day: day(iso) })) },
+      },
+    });
+  }
+
   const counts = {
     domains: await db.domain.count(),
     clusters: await db.cluster.count(),
@@ -1330,6 +1375,7 @@ async function main(): Promise<void> {
     notes: await db.note.count(),
     focus: await db.focusItem.count(),
     journal: await db.journalEntry.count(),
+    routines: await db.routine.count(),
     inbox: await db.inboxItem.count(),
   };
   console.log('Seeded:', counts);

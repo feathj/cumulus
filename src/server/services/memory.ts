@@ -7,6 +7,8 @@ import type {
   Prisma,
 } from '@prisma/client';
 
+import { dateToDay } from '@/lib/day';
+
 import { getCluster } from './clusters';
 import type { ClusterRef } from './clusters';
 import { entriesInCluster, eventsInCluster } from './scope';
@@ -89,6 +91,15 @@ export interface MemoryEventView {
   referenceCount: number;
 }
 
+/** A day's journal that links the cluster or one of its cards. */
+export interface JournalMention {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  body: string;
+  /** The cluster's cards it links; empty when it links only the cluster. */
+  nodes: NodeRef[];
+}
+
 export interface ClusterMemory {
   cluster: ClusterRef;
   /** Every entry in the cluster or on its cards, whatever its status; most recently changed first. */
@@ -97,6 +108,8 @@ export interface ClusterMemory {
   events: MemoryEventView[];
   /** Revisions made outside any event — reviews and hand edits. Newest first. */
   looseChanges: MemoryChange[];
+  /** Journal days that mention the cluster or its cards, newest first. */
+  journal: JournalMention[];
 }
 
 export interface MemorySummary {
@@ -211,7 +224,7 @@ export async function getClusterMemory(
 ): Promise<ClusterMemory> {
   const cluster = await getCluster(db, domainSlug, clusterSlug);
 
-  const [entries, events, looseRevisions] = await Promise.all([
+  const [entries, events, looseRevisions, journal] = await Promise.all([
     db.memoryEntry.findMany({
       where: entriesInCluster(cluster.id),
       orderBy: { updatedAt: 'desc' },
@@ -227,6 +240,20 @@ export async function getClusterMemory(
       orderBy: { createdAt: 'desc' },
       select: revisionSelect,
     }),
+    db.journalEntry.findMany({
+      where: {
+        OR: [
+          { clusterLinks: { some: { clusterId: cluster.id } } },
+          { nodeLinks: { some: { node: { clusterId: cluster.id } } } },
+        ],
+      },
+      orderBy: { entryDate: 'desc' },
+      select: {
+        entryDate: true,
+        body: true,
+        nodeLinks: { where: { node: { clusterId: cluster.id } }, select: { node: nodeRefSelect } },
+      },
+    }),
   ]);
 
   return {
@@ -238,6 +265,11 @@ export async function getClusterMemory(
       referenceCount: _count.references,
     })),
     looseChanges: looseRevisions.map((revision) => toChange(revision)),
+    journal: journal.map((entry) => ({
+      day: dateToDay(entry.entryDate),
+      body: entry.body,
+      nodes: entry.nodeLinks.map((link) => link.node),
+    })),
   };
 }
 

@@ -16,6 +16,16 @@ export function wikiLinksToMarkdown(source: string): string {
   });
 }
 
+/** The distinct titles the `[[wiki links]]` in `source` point at, in order of first appearance. */
+export function wikiLinkTitles(source: string): string[] {
+  const titles = new Set<string>();
+  for (const match of source.matchAll(WIKI_LINK)) {
+    const title = match[1]?.replace(/\s+/g, ' ').trim();
+    if (title) titles.add(title);
+  }
+  return [...titles];
+}
+
 /** The title a `wiki:` URL points at, or null for any other URL. */
 export function parseWikiHref(href: string): string | null {
   if (!href.startsWith(WIKI_PROTOCOL)) return null;

@@ -5,8 +5,13 @@
 //   Domain ── Cluster ── Node ── Note (many)
 //     │
 //     ├── InboxItem     unfiled captures waiting to become Nodes
-//     ├── FocusItem     the single ordered work queue for a domain
-//     └── JournalEntry  one per day, linking back to Clusters and Nodes
+//     └── FocusItem     the ordered work queue for a domain
+//
+// The day sits across every domain rather than inside one:
+//
+//   JournalEntry    one per day, linking to the Clusters and Nodes it mentions
+//   Routine         something done every day, like exercise
+//     └── RoutineCheck  a day it was done
 //
 // Memory sits beside that tree rather than inside it, scoped to a node, a
 // cluster, a domain, or nothing at all (global):
@@ -144,7 +149,6 @@ model Domain {
   clusters       Cluster[]
   inboxItems     InboxItem[]
   focusItems     FocusItem[]
-  journalEntries JournalEntry[]
   memoryEntries  MemoryEntry[]
   memoryEvents   MemoryEvent[]
 
@@ -519,7 +523,8 @@ model InboxItem {
 // ---------------------------------------------------------------------------
 
 /// One ordered queue per domain: what I have committed to this block of time.
-/// A node can sit in the queue once.
+/// A node can sit in the queue once, and carries over from day to day until
+/// it is done.
 model FocusItem {
   id       String @id @default(cuid())
   domainId String
@@ -535,17 +540,53 @@ model FocusItem {
 }
 
 // ---------------------------------------------------------------------------
+// Routines
+// ---------------------------------------------------------------------------
+
+/// Something I mean to do every day — exercise, meditate — checked off on
+/// Today. Retired rather than deleted, so the days it was done are kept.
+model Routine {
+  id    String @id @default(cuid())
+  title String
+
+  /// Order on Today.
+  position Int
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  checks RoutineCheck[]
+
+  @@index([position])
+}
+
+/// A day a routine was done. Unchecking it deletes the row.
+model RoutineCheck {
+  routineId String
+  routine   Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  /// Calendar day, no time component.
+  day DateTime @db.Date
+
+  checkedAt DateTime @default(now())
+
+  @@id([routineId, day])
+  @@index([day])
+}
+
+// ---------------------------------------------------------------------------
 // Journal
 // ---------------------------------------------------------------------------
 
-/// One free-text entry per domain per day.
+/// The day's journal: one free-text markdown note per calendar day, across
+/// every domain. Its [[wiki links]] put the day on the timelines of the
+/// clusters and cards it mentions.
 model JournalEntry {
-  id       String @id @default(cuid())
-  domainId String
-  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
   /// Calendar day, no time component.
-  entryDate DateTime @db.Date
+  entryDate DateTime @unique @db.Date
 
   body String @default("")
 
@@ -554,9 +595,6 @@ model JournalEntry {
 
   clusterLinks JournalClusterLink[]
   nodeLinks    JournalNodeLink[]
-
-  @@unique([domainId, entryDate])
-  @@index([domainId, entryDate])
 }
 
 /// Resolved [[wiki link]] from a journal entry to a cluster. Stored rather than

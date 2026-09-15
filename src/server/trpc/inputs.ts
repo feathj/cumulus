@@ -1,9 +1,26 @@
 import { Priority } from '@prisma/client';
 import { z } from 'zod';
 
+import { isDayKey } from '@/lib/day';
+
 const slug = z.string().trim().min(1).max(100);
 const id = z.string().trim().min(1).max(100);
 const ideaText = z.string().trim().min(1).max(5000);
+const day = z.string().refine(isDayKey, 'A day is written YYYY-MM-DD.');
+const routineTitle = z.string().trim().min(1).max(120);
+
+/** A day, and the IANA time zone to read "today" and check-off times in. */
+export const dayInput = z.object({ day, timeZone: z.string().trim().max(100) });
+
+export const createRoutineInput = z.object({ title: routineTitle });
+
+export const renameRoutineInput = z.object({ id, title: routineTitle });
+
+export const moveRoutineInput = z.object({ id, index: z.number().int().min(0).max(1000) });
+
+export const checkRoutineInput = z.object({ id, day, checked: z.boolean() });
+
+export const saveJournalInput = z.object({ day, body: z.string().max(200_000) });
 
 export const domainInput = z.object({ domainSlug: slug });
 

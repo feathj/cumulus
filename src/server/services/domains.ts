@@ -34,7 +34,8 @@ export async function listDomains(db: Db): Promise<DomainSummary[]> {
       _count: {
         select: {
           clusters: { where: { archivedAt: null } },
-          focusItems: true,
+          // Checked-off cards linger in the queue for the day they were done.
+          focusItems: { where: { node: { completedAt: null, archivedAt: null } } },
         },
       },
     },

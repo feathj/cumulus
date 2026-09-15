@@ -9,6 +9,11 @@ export const todayPath = '/today';
 export const inboxPath = '/inbox';
 export const cloudPath = '/cloud';
 
+/** A day other than today, on the Today page. */
+export function dayPath(day: string): string {
+  return `${todayPath}/${day}`;
+}
+
 export function domainPath(domainSlug: string): string {
   return `${cloudPath}/${domainSlug}`;
 }
