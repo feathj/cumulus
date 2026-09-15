@@ -172,6 +172,22 @@ Sigma is imported inside an effect, so the cloud renders nothing on the server
 and appears once the client has loaded it. Each cloud also renders a list of its
 orbs that is hidden until keyboard focus enters it.
 
+**Cells.** Inside each cluster orb in the domain cloud, a few of its open cards
+drift as faint rings with tiny titles, sized by priority: now cards biggest and
+brightest, someday cards smallest. They're decoration, not controls: nothing
+about them can be hovered or clicked. `cells.ts` wanders them faster than the
+orbs move, keeps them inside a membrane just within the orb's edge and out of
+its nucleus — the space around the orb's label, which is shaded a little darker
+so the name stays readable — and every 9–18 seconds fades one out so another
+card from the cluster can fade in, working through a shuffled pool (up to 60
+cards, now first) so every card surfaces in time. Bigger orbs hold more, up to
+six. They're drawn on their own canvas between Sigma's node and label layers,
+and hold still with reduced motion.
+
+**Labels on hover.** Sigma redraws a hovered node on a WebGL layer above the
+labels, which suits labels beside a node but covered ours, drawn inside. That
+layer is hidden; hovering only adds the ring.
+
 ## Importing real data
 
 `npm run db:import` reads `data/import.config.json` (or a path passed after

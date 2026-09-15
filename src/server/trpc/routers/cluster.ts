@@ -2,6 +2,7 @@ import {
   archiveCluster,
   createCluster,
   getClusterBoard,
+  listClusterCells,
   listClusters,
   restoreCluster,
 } from '../../services/clusters';
@@ -16,6 +17,11 @@ export const clusterRouter = router({
   board: procedure
     .input(clusterInput)
     .query(({ ctx, input }) => getClusterBoard(ctx.db, input.domainSlug, input.clusterSlug)),
+
+  /** Open cards to drift inside each cluster's orb in the domain cloud. */
+  cells: procedure
+    .input(domainInput)
+    .query(({ ctx, input }) => listClusterCells(ctx.db, input.domainSlug)),
 
   /** A new, empty cluster in a domain; returns its slug for linking. */
   create: procedure

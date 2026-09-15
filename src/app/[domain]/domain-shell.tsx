@@ -72,20 +72,10 @@ function DomainRail({ domains, activeSlug }: { domains: DomainSummary[]; activeS
         flexDirection: 'column',
         alignItems: 'center',
         gap: 2.75,
-        pt: 2.25,
+        pt: 1.5,
         pb: 2,
       }}
     >
-      <Box
-        aria-hidden
-        sx={{
-          width: 30,
-          height: 30,
-          borderRadius: '50%',
-          background: `radial-gradient(circle at 32% 28%, ${oklch(0.86, 0.06, 250)}, ${oklch(0.42, 0.1, 250)} 70%, ${oklch(0.28, 0.05, 250)})`,
-          boxShadow: `0 0 18px ${oklcha(0.55, 0.12, 250, 0.45)}`,
-        }}
-      />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {domains.map((domain) => (
           <DomainChip key={domain.id} domain={domain} active={domain.slug === activeSlug} />

@@ -2,6 +2,7 @@
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import type { Priority } from '@prisma/client';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -23,6 +24,9 @@ import { NewClusterButton } from './new-cluster-button';
 const HUB_RADIUS = 54;
 const ORB_GAP = 16;
 
+/** Cells drifting inside a cluster: cards up now are the biggest, someday cards the smallest. */
+const CELL_SCALE: Record<Priority, number> = { NOW: 1.6, NEXT: 1, SOMEDAY: 0.6 };
+
 /** Bigger clusters make bigger orbs, on a gentle curve so one huge list doesn't dwarf the rest. */
 function clusterRadius(openCards: number, fewest: number, most: number): number {
   if (most <= fewest) return 56;
@@ -43,6 +47,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
   const { hue } = palette;
   const { data: clusters } = useSuspenseQuery(trpc.cluster.list.queryOptions({ domainSlug }));
   const { data: domains } = useSuspenseQuery(trpc.domain.list.queryOptions());
+  const { data: cellPools } = useSuspenseQuery(trpc.cluster.cells.queryOptions({ domainSlug }));
   const title = domains.find((d) => d.slug === domainSlug)?.title ?? domainSlug;
 
   const orbs = useMemo<CloudOrb[]>(() => {
@@ -52,11 +57,17 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
     const most = Math.max(...counts);
     const radii = clusters.map((cluster) => clusterRadius(cluster.openNodeCount, fewest, most));
     const ring = singleRingRadius(HUB_RADIUS, radii, ORB_GAP);
+    const pools = new Map(cellPools.map((entry) => [entry.clusterId, entry.cards]));
 
     return clusters.map((cluster, index) => ({
       id: cluster.slug,
       label: cluster.title,
       caption: memoryCaption(cluster.memory),
+      cells: (pools.get(cluster.id) ?? []).map((card) => ({
+        id: card.id,
+        label: card.title,
+        scale: CELL_SCALE[card.priority],
+      })),
       radius: radii[index] ?? 56,
       // A little spread in and out, so the ring reads as a cloud.
       ring: ring * (0.9 + 0.2 * hash01(cluster.slug)),
@@ -68,7 +79,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
       serif: true,
       bold: true,
     }));
-  }, [clusters, hue]);
+  }, [clusters, cellPools, hue]);
 
   const hub = useMemo<CloudHub>(
     () => ({

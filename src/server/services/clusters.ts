@@ -289,3 +289,38 @@ export async function restoreCluster(db: Db, id: string): Promise<void> {
   if (!cluster.archivedAt) return;
   await db.cluster.update({ where: { id }, data: { archivedAt: null } });
 }
+
+/** Most cards per cluster the domain cloud rotates through inside its orb. */
+export const CELL_POOL_LIMIT = 60;
+
+export interface ClusterCells {
+  clusterId: string;
+  cards: { id: string; title: string; priority: Priority }[];
+}
+
+/**
+ * Open cards to drift inside each cluster's orb in the domain cloud. Now comes
+ * first, so when a cluster has more cards than the limit the pool leans toward
+ * what's current. Clusters without open cards are left out.
+ */
+export async function listClusterCells(db: Db, domainSlug: string): Promise<ClusterCells[]> {
+  const domain = await getDomain(db, domainSlug);
+  const nodes = await db.node.findMany({
+    where: {
+      completedAt: null,
+      archivedAt: null,
+      cluster: { domainId: domain.id, archivedAt: null },
+    },
+    // Priority sorts in its declared order: now, next, someday.
+    orderBy: [{ priority: 'asc' }, { position: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, title: true, priority: true, clusterId: true },
+  });
+
+  const byCluster = new Map<string, ClusterCells>();
+  for (const { clusterId, ...card } of nodes) {
+    const entry = byCluster.get(clusterId) ?? { clusterId, cards: [] };
+    if (entry.cards.length < CELL_POOL_LIMIT) entry.cards.push(card);
+    byCluster.set(clusterId, entry);
+  }
+  return [...byCluster.values()];
+}

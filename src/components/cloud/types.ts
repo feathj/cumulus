@@ -8,6 +8,8 @@ export interface CloudOrb {
   caption: string | null;
   /** Icons in a row beneath the label, drawn in the caption colour unless they have their own. */
   icons?: CardIconName[];
+  /** Cards to drift inside the orb, a few at a time, rotating through the list. */
+  cells?: CloudCell[];
   /** In graph units; at zoom 1 roughly pixels. */
   radius: number;
   /** Distance from the hub the orb orbits at, before the ellipse stretch. */
@@ -20,6 +22,17 @@ export interface CloudOrb {
   captionColor: string;
   serif: boolean;
   bold: boolean;
+}
+
+/** A card drifting inside an orb. Decorative only: cells can't be hovered or clicked. */
+export interface CloudCell {
+  id: string;
+  label: string;
+  /**
+   * Relative size, where 1 is a standard cell. Bigger cells are drawn brighter
+   * too, so what matters most stands out.
+   */
+  scale: number;
 }
 
 /** The fixed body at the centre. */

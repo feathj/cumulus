@@ -22,6 +22,8 @@ import type { NodeHoverDrawingFunction, NodeLabelDrawingFunction } from 'sigma/r
 import { CARD_ICONS } from '@/lib/icons';
 import type { CardIconName } from '@/lib/icons';
 
+import { MEMBRANE, cellCapacity, cellOpacity, cellRing, createCellSwarm } from './cells';
+import type { CellSwarm, Nucleus } from './cells';
 import { ellipseAxes, hash01 } from './geometry';
 import type { CloudHub, CloudOrb } from './types';
 import { wrapText } from './wrap';
@@ -47,6 +49,14 @@ const MIN_LABEL_RADIUS_PX = 16;
 const MIN_ICON_RADIUS_PX = 22;
 /** Space between the text above and the icon row. */
 const ICON_ROW_GAP = 5;
+/** Below this on-screen radius an orb is too small to show the cards drifting inside it. */
+const MIN_CELL_ORB_PX = 30;
+/** Cells are faint: a standard cell's ring and title at this opacity, bigger cells brighter. */
+const CELL_ALPHA = 0.3;
+/** How dark an orb's nucleus is at its heart, behind the label. */
+const NUCLEUS_SHADE = 0.34;
+/** The faint ring of the membrane the cells stay inside. */
+const MEMBRANE_ALPHA = 0.14;
 /** Space around the outermost orbit when fitting the camera. */
 const MARGIN = 36;
 
@@ -61,6 +71,8 @@ interface OrbAttributes {
   caption: string;
   captionColor: string;
   icons: CardIconName[];
+  /** Cards drift inside it, so its label keeps a shadow and a record of its size. */
+  hasCells: boolean;
   serif: boolean;
   bold: boolean;
   hub: boolean;
@@ -254,6 +266,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     caption: '',
     captionColor: hub.labelColor,
     icons: [],
+    hasCells: false,
     serif: false,
     bold: true,
     hub: true,
@@ -274,6 +287,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
       caption: orb.caption ?? '',
       captionColor: orb.captionColor,
       icons: orb.icons ?? [],
+      hasCells: Boolean(orb.cells?.length),
       serif: orb.serif,
       bold: orb.bold,
       hub: false,
@@ -288,10 +302,12 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
 
   // Fitting text is the costly part of a frame, and most frames redraw the same
   // labels at the same size, so remember each fit.
-  const fitCache = new Map<string, { fontSize: number; lines: string[] }>();
+  const fitCache = new Map<string, { fontSize: number; lines: string[]; width: number }>();
+  /** Each orb's label block, in orb radii, so the cells inside it can keep clear. */
+  const labelBlocks = new Map<string, Nucleus>();
 
   const drawLabel: NodeLabelDrawingFunction<OrbAttributes, TetherAttributes> = (context, data) => {
-    const orb = data as typeof data & Partial<OrbAttributes>;
+    const orb = data as typeof data & Partial<OrbAttributes> & { key?: string };
     if (!orb.label || orb.size < MIN_LABEL_RADIUS_PX) return;
 
     const box = orb.size * 1.4;
@@ -316,7 +332,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
         if (!lines.at(-1)?.endsWith('…') || fontSize <= 9) break;
         fontSize -= 1;
       }
-      fit = { fontSize, lines };
+      fit = { fontSize, lines, width: Math.max(0, ...lines.map((line) => context.measureText(line).width)) };
       if (fitCache.size > 2000) fitCache.clear();
       fitCache.set(cacheKey, fit);
     }
@@ -324,10 +340,21 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     const lineHeight = fit.fontSize * 1.25;
     const blockHeight = fit.lines.length * lineHeight + (caption ? captionSize + 6 : 0) + iconRow;
     let y = orb.y - blockHeight / 2 + lineHeight / 2;
+    if (orb.hasCells && orb.key) {
+      labelBlocks.set(orb.key, {
+        halfWidth: fit.width / 2 / orb.size,
+        halfHeight: blockHeight / 2 / orb.size,
+      });
+    }
 
     context.save();
     context.textAlign = 'center';
     context.textBaseline = 'middle';
+    if (orb.hasCells) {
+      // Lifts the name off the cells drifting behind it.
+      context.shadowColor = 'rgba(0, 0, 0, 0.7)';
+      context.shadowBlur = Math.max(4, fit.fontSize * 0.45);
+    }
     context.fillStyle = orb.labelColor ?? '#ffffff';
     context.font = `${weight} ${fit.fontSize}px ${family}`;
     for (const line of fit.lines) {
@@ -354,22 +381,17 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     context.restore();
   };
 
-  const drawHover: NodeHoverDrawingFunction<OrbAttributes, TetherAttributes> = (
-    context,
-    data,
-    settings,
-  ) => {
+  // Just the ring. Every label, hovered or not, is already on the label layer.
+  const drawHover: NodeHoverDrawingFunction<OrbAttributes, TetherAttributes> = (context, data) => {
     const orb = data as typeof data & Partial<OrbAttributes>;
-    if (!orb.hub) {
-      context.save();
-      context.beginPath();
-      context.arc(orb.x, orb.y, orb.size + 3, 0, Math.PI * 2);
-      context.lineWidth = 2;
-      context.strokeStyle = options.highlightColor;
-      context.stroke();
-      context.restore();
-    }
-    drawLabel(context, data, settings);
+    if (orb.hub) return;
+    context.save();
+    context.beginPath();
+    context.arc(orb.x, orb.y, orb.size + 3, 0, Math.PI * 2);
+    context.lineWidth = 2;
+    context.strokeStyle = options.highlightColor;
+    context.stroke();
+    context.restore();
   };
 
   // --- Renderer -----------------------------------------------------------------
@@ -402,6 +424,159 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     allowInvalidContainer: true,
   });
 
+  // Sigma draws hovered and highlighted nodes a second time, on a WebGL layer
+  // above the labels, which suits labels that sit beside a node. Ours sit
+  // inside, so that copy covered them; the node layer already draws every orb.
+  const hoverNodes = container.querySelector<HTMLCanvasElement>('.sigma-hoverNodes');
+  if (hoverNodes) hoverNodes.style.display = 'none';
+
+  // --- Cells: cards drifting inside their orbs ------------------------------------
+
+  const swarms = new Map<string, CellSwarm>();
+  for (const orb of orbs) {
+    if (orb.cells?.length) {
+      swarms.set(orb.id, createCellSwarm(orb.cells, cellCapacity(orb.radius, orb.cells.length)));
+    }
+  }
+
+  // Their own canvas, between the orbs and the labels, so orb titles stay on top.
+  // The mouse layer above everything means cells can't be hovered or clicked.
+  const cellLayer = swarms.size ? renderer.createCanvas('cells', { afterLayer: 'nodes' }) : null;
+  const cellContext = cellLayer?.getContext('2d') ?? null;
+  const cellLabels = new Map<string, string>();
+
+  const sizeCells = () => {
+    if (!cellLayer || !cellContext) return;
+    const { width, height } = renderer.getDimensions();
+    const ratio = window.devicePixelRatio || 1;
+    cellLayer.width = Math.round(width * ratio);
+    cellLayer.height = Math.round(height * ratio);
+    cellLayer.style.width = `${width}px`;
+    cellLayer.style.height = `${height}px`;
+    cellContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+  };
+  sizeCells();
+
+  const fitCellLabel = (context: CanvasRenderingContext2D, label: string, fontSize: number, maxWidth: number) => {
+    const key = `${label}|${fontSize}|${maxWidth}`;
+    let fitted = cellLabels.get(key);
+    if (fitted === undefined) {
+      fitted = wrapText(label, maxWidth, 1, (text) => context.measureText(text).width)[0] ?? '';
+      if (cellLabels.size > 1000) cellLabels.clear();
+      cellLabels.set(key, fitted);
+    }
+    return fitted;
+  };
+
+  /**
+   * One orb's insides: a shaded nucleus behind its label, a faint membrane just
+   * inside its edge, and its cells — rings sized by priority, with tiny titles —
+   * clipped to the membrane so nothing spills out.
+   */
+  const drawSwarm = (
+    context: CanvasRenderingContext2D,
+    swarm: CellSwarm,
+    centerX: number,
+    centerY: number,
+    radius: number,
+    color: string,
+    nucleus: Nucleus | undefined,
+  ) => {
+    const fontSize = Math.min(10, Math.max(6.5, radius * 0.11));
+    const maxWidth = Math.round(radius * 0.9);
+
+    context.save();
+    if (nucleus) {
+      // Darkest behind the label and fading out past it, so the name sits in a nucleus.
+      const rx = Math.min(radius * 0.95, (nucleus.halfWidth + 0.2) * radius);
+      const ry = Math.min(radius * 0.95, (nucleus.halfHeight + 0.16) * radius);
+      context.save();
+      context.translate(centerX, centerY);
+      context.scale(1, ry / rx);
+      const shade = context.createRadialGradient(0, 0, 0, 0, 0, rx);
+      shade.addColorStop(0, `rgba(0, 0, 0, ${NUCLEUS_SHADE})`);
+      shade.addColorStop(0.55, `rgba(0, 0, 0, ${NUCLEUS_SHADE * 0.6})`);
+      shade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      context.fillStyle = shade;
+      context.beginPath();
+      context.arc(0, 0, rx, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
+
+    // The membrane, then everything else kept inside it.
+    context.lineWidth = 1;
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    context.globalAlpha = MEMBRANE_ALPHA;
+    context.beginPath();
+    context.arc(centerX, centerY, radius * MEMBRANE, 0, Math.PI * 2);
+    context.stroke();
+    context.clip();
+
+    context.textAlign = 'center';
+    context.textBaseline = 'top';
+    for (const cell of swarm.cells) {
+      const { scale } = cell.card;
+      const opacity = cellOpacity(cell) * Math.min(1, CELL_ALPHA * scale ** 0.75);
+      if (opacity < 0.01) continue;
+      const x = centerX + cell.x * radius;
+      const y = centerY + cell.y * radius;
+      const ring = Math.max(2, radius * cellRing(cell.card));
+      const titleSize = Math.round(fontSize * Math.sqrt(scale) * 2) / 2;
+      context.globalAlpha = opacity;
+      context.beginPath();
+      context.arc(x, y, ring, 0, Math.PI * 2);
+      context.stroke();
+      context.font = `400 ${titleSize}px ${fonts.sans}`;
+      context.fillText(fitCellLabel(context, cell.card.label, titleSize, maxWidth), x, y + ring + 2);
+    }
+    context.restore();
+  };
+
+  let lastCellDraw = performance.now();
+  const drawCells = () => {
+    if (!cellContext) return;
+    const now = performance.now();
+    const elapsed = (now - lastCellDraw) / 1000;
+    lastCellDraw = now;
+
+    const { width, height } = renderer.getDimensions();
+    cellContext.clearRect(0, 0, width, height);
+    for (const [id, swarm] of swarms) {
+      const nucleus = labelBlocks.get(id);
+      swarm.setNucleus(nucleus ?? null);
+      // A zero step still moves cells out of the label's way, without any drifting.
+      swarm.step(reducedMotion ? 0 : elapsed);
+      const data = renderer.getNodeDisplayData(id);
+      if (!data) continue;
+      const radius = renderer.scaleSize(data.size);
+      if (radius < MIN_CELL_ORB_PX) continue;
+      const center = renderer.framedGraphToViewport(data);
+      drawSwarm(
+        cellContext,
+        swarm,
+        center.x,
+        center.y,
+        radius,
+        graph.getNodeAttribute(id, 'labelColor'),
+        nucleus,
+      );
+    }
+  };
+
+  // Cells move on their own clock, faster than the physics. With reduced motion
+  // they hold still and are only redrawn when the view changes.
+  let cellFrame = 0;
+  const animateCells = () => {
+    drawCells();
+    cellFrame = requestAnimationFrame(animateCells);
+  };
+  if (swarms.size) {
+    if (reducedMotion) renderer.on('afterRender', drawCells);
+    else cellFrame = requestAnimationFrame(animateCells);
+  }
+
   // A fixed frame, so orbs drifting outward don't make Sigma rescale the view.
   const fitFrame = () => {
     let x = hub.radius;
@@ -419,6 +594,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
   void document.fonts.ready.then(() => {
     fonts = resolveFonts(container);
     fitCache.clear();
+    cellLabels.clear();
     renderer.refresh();
   });
 
@@ -512,6 +688,7 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
   const resizeObserver = new ResizeObserver(() => {
     axes = ellipseAxes(container.clientWidth, container.clientHeight);
     renderer.resize();
+    sizeCells();
     fitFrame();
     renderer.refresh();
     simulation.alpha(Math.max(simulation.alpha(), 0.2)).restart();
@@ -532,6 +709,8 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     },
     dispose() {
       resizeObserver.disconnect();
+      cancelAnimationFrame(cellFrame);
+      cellLayer?.remove();
       simulation.stop();
       renderer.kill();
       graph.clear();
