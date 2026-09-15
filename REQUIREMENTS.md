@@ -8,23 +8,24 @@ retain knowledge for future work. It is presented in a highly graphical and inte
 ** Overview **
 * Root record is "domain". Examples of domains are "personal", "work", and "church"
   * Domains have a title and a theme color associated with them that is used to help differentiate the different domains in the UI
-  * Domains are split into tabs
+  * Domains are bubbles in the top-level cloud, drawn in their theme colour, with their clusters floating inside
   * I switch between domains as I have different blocks of time to work each
     * For example: I mainly focus on the "work" domain during work hours
     * I mainly work on "church" domain on sundays and thursday evenings (set aside time for church responsibilities)
     * personal would be worked on at different times
     * I can switch between them whenever I want
 
-* Domains are split into functional sections
-  * Cloud
-    * Display of clusters in cloud
-    * Search clusters and underlying nodes
+* The app has three top-level sections
+  * Today
+    * Combines focus and journal for the day
+    * Focus: location for focusing blocks of time on work, single ordered list. Works like a pretty standard TODO list
+    * Journal: daily journal records are created to give overview on thoughts for the day, able to link to clusters
   * Inbox
-    * Inbox is landing spot for ideas as they come for further refinement and prioritization
-  * Focus
-    * Location for focusing blocks of time on work, single ordered list. Works like a pretty standard TODO list
-  * Journal
-    * Daily journal records are created to give overview on thoughts for the day, able to link to clusters
+    * One inbox for everything: landing spot for ideas as they come for further refinement and prioritization
+    * Ideas are captured without choosing a domain; the domain and cluster are chosen when filing
+  * Cloud
+    * Domains float at the top level; opening a domain shows its clusters, opening a cluster shows its nodes
+    * Search clusters and underlying nodes
 
 * Clusters are tied to a domain
   * They have a title

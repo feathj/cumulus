@@ -14,6 +14,7 @@ import type { FormEvent } from 'react';
 import { useDomainPalette } from '@/components/domain-theme';
 import { useShowNotice } from '@/components/notice';
 import { neutral } from '@/lib/palette';
+import { clusterPath } from '@/lib/routes';
 import { useTRPC } from '@/trpc/client';
 
 const PLUS = 'M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z';
@@ -31,7 +32,7 @@ export function NewClusterButton({ domainSlug }: { domainSlug: string }) {
     trpc.cluster.create.mutationOptions({
       onSettled: () => {
         void queryClient.invalidateQueries({ queryKey: trpc.cluster.list.queryKey({ domainSlug }) });
-        void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+        void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
       },
     }),
   );
@@ -51,7 +52,7 @@ export function NewClusterButton({ domainSlug }: { domainSlug: string }) {
       {
         onSuccess: (cluster) => {
           close();
-          showNotice(`Created ${cluster.title}.`, { label: 'Open', href: `/${domainSlug}/${cluster.slug}` });
+          showNotice(`Created ${cluster.title}.`, { label: 'Open', href: clusterPath(domainSlug, cluster.slug) });
         },
       },
     );

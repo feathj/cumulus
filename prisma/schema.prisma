@@ -490,9 +490,11 @@ model Attachment {
 /// Landing spot for an idea before it has a home. Filing one creates a Node and
 /// leaves the original row behind as a record of the capture.
 model InboxItem {
-  id       String @id @default(cuid())
-  domainId String
-  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  id       String  @id @default(cuid())
+  /// The domain the idea is headed for, when known. The inbox is app-wide, so
+  /// captures arrive without one; filing sets it to the domain the card went to.
+  domainId String?
+  domain   Domain? @relation(fields: [domainId], references: [id], onDelete: SetNull)
 
   text String
 

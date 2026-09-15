@@ -219,12 +219,6 @@ export async function getClusterBoard(
 }
 
 /**
- * Domain-level routes a cluster slug would be hidden behind: a cluster at
- * `/personal/inbox` would never be reachable, because the inbox is there.
- */
-const RESERVED_SLUGS = ['inbox', 'focus', 'journal'];
-
-/**
  * A new, empty cluster at the end of its domain, with a slug made from its
  * name. Names are unique within a domain regardless of case, and archived
  * clusters keep theirs, so reusing one is refused rather than silently renamed.
@@ -253,7 +247,7 @@ export async function createCluster(
       );
     }
 
-    const taken = new Set([...RESERVED_SLUGS, ...existing.map((cluster) => cluster.slug)]);
+    const taken = new Set(existing.map((cluster) => cluster.slug));
     return tx.cluster.create({
       data: {
         domainId: domain.id,

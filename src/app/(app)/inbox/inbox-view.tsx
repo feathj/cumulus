@@ -11,7 +11,7 @@ import { useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 
 import { serif } from '@/app/theme';
-import { useDomainPalette } from '@/components/domain-theme';
+import { DomainTheme, useDomainPalette } from '@/components/domain-theme';
 import { useShowNotice } from '@/components/notice';
 import type { ShowNotice } from '@/components/notice';
 import { SegmentGroup, segmentSx } from '@/components/segmented';
@@ -19,8 +19,9 @@ import { PRIORITIES } from '@/lib/board';
 import { oklch } from '@/lib/color';
 import { formatDay, formatTime } from '@/lib/format';
 import { splitIdea } from '@/lib/ideas';
-import { neutral } from '@/lib/palette';
-import type { ClusterSummary } from '@/server/services/clusters';
+import { domainPalette, neutral } from '@/lib/palette';
+import { cardPath } from '@/lib/routes';
+import type { CloudCluster, DomainCloudEntry } from '@/server/services/domains';
 import type { FileInboxItemInput, InboxItemView } from '@/server/services/inbox';
 import { useTRPC } from '@/trpc/client';
 
@@ -44,14 +45,19 @@ const overlineSx = {
   color: 'text.secondary',
 } as const;
 
+/** Where a capture is being filed: a cluster, and the domain it's in. */
+interface FilingTarget {
+  domain: DomainCloudEntry;
+  cluster: CloudCluster;
+}
+
 /** Everything the inbox can do to a capture, with its confirmations. */
-function useInboxActions(domainSlug: string, show: ShowNotice) {
+function useInboxActions(show: ShowNotice) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: trpc.inbox.list.queryKey({ domainSlug }) });
-    void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.inbox.pathKey() });
   };
 
   const update = useMutation(trpc.inbox.update.mutationOptions({ onSettled: refresh }));
@@ -61,7 +67,9 @@ function useInboxActions(domainSlug: string, show: ShowNotice) {
     trpc.inbox.file.mutationOptions({
       onSettled: () => {
         refresh();
+        // A new card changes cluster boards and every count above them.
         void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
+        void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
       },
     }),
   );
@@ -91,12 +99,12 @@ function useInboxActions(domainSlug: string, show: ShowNotice) {
         { onSuccess: () => show('Back in the inbox.'), onError: () => show('That couldn’t be restored.') },
       ),
 
-    file: (input: FileInboxItemInput, cluster: ClusterSummary) =>
+    file: (input: FileInboxItemInput, target: FilingTarget) =>
       file.mutate(input, {
         onSuccess: (card) =>
-          show(`Filed into ${cluster.title}.`, {
+          show(`Filed into ${target.domain.title} / ${target.cluster.title}.`, {
             label: 'Open card',
-            href: `/${card.domainSlug}/${card.clusterSlug}/cards?node=${card.nodeId}`,
+            href: cardPath(card.domainSlug, card.clusterSlug, card.nodeId),
           }),
         onError: () => show('That didn’t file, so it’s still here.'),
       }),
@@ -106,15 +114,16 @@ function useInboxActions(domainSlug: string, show: ShowNotice) {
 type InboxActions = ReturnType<typeof useInboxActions>;
 
 /**
- * Where captures wait. Each one can be refined, filed into a cluster as a
- * card — with a title, description and priority — or archived.
+ * The one inbox, for every domain. Each capture can be refined, filed into a
+ * domain's cluster as a card — with a title, description and priority — or
+ * archived.
  */
-export function InboxView({ domainSlug }: { domainSlug: string }) {
+export function InboxView() {
   const trpc = useTRPC();
-  const { data: inbox } = useSuspenseQuery(trpc.inbox.list.queryOptions({ domainSlug }));
-  const { data: clusters } = useSuspenseQuery(trpc.cluster.list.queryOptions({ domainSlug }));
+  const { data: inbox } = useSuspenseQuery(trpc.inbox.list.queryOptions());
+  const { data: domains } = useSuspenseQuery(trpc.domain.cloud.queryOptions());
   const show = useShowNotice();
-  const actions = useInboxActions(domainSlug, show);
+  const actions = useInboxActions(show);
   const [showArchived, setShowArchived] = useState(false);
 
   return (
@@ -127,15 +136,15 @@ export function InboxView({ domainSlug }: { domainSlug: string }) {
           Inbox
         </Typography>
         <Typography sx={{ mt: 0.5, mb: 2.75, fontSize: 13.5, lineHeight: 1.5, color: 'text.secondary', maxWidth: '58ch' }}>
-          Everything you caught without deciding where it goes. Refine it, file it into a cluster, or
-          archive it — one at a time. The pile is allowed to exist.
+          Everything you caught, from anywhere, before deciding where it goes. Refine it, file it into
+          a domain and cluster, or archive it — one at a time. The pile is allowed to exist.
         </Typography>
 
         {inbox.items.length > 0 ? (
           <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {inbox.items.map((item) => (
               <li key={item.id}>
-                <InboxCard item={item} clusters={clusters} actions={actions} />
+                <InboxCard item={item} domains={domains} actions={actions} />
               </li>
             ))}
           </Box>
@@ -217,27 +226,37 @@ export function InboxView({ domainSlug }: { domainSlug: string }) {
   );
 }
 
-type Mode = { kind: 'reading' } | { kind: 'refining' } | { kind: 'filing'; cluster: ClusterSummary };
+type Mode = { kind: 'reading' } | { kind: 'refining' } | { kind: 'filing'; target: FilingTarget };
 
 function InboxCard({
   item,
-  clusters,
+  domains,
   actions,
 }: {
   item: InboxItemView;
-  clusters: ClusterSummary[];
+  domains: DomainCloudEntry[];
   actions: InboxActions;
 }) {
   const palette = useDomainPalette();
   const [mode, setMode] = useState<Mode>({ kind: 'reading' });
+  // Start from the domain the idea arrived with, if it came with one.
+  const [domainSlug, setDomainSlug] = useState<string | null>(item.domain?.slug ?? null);
+  const chosen = domains.find((domain) => domain.slug === domainSlug) ?? null;
   const reading = () => setMode({ kind: 'reading' });
+
+  const borderColor =
+    mode.kind === 'reading'
+      ? oklch(0.256, 0.014, 265)
+      : mode.kind === 'filing'
+        ? domainPalette(mode.target.domain.themeHue).border
+        : palette.border;
 
   return (
     <Box
       component="article"
       aria-label={item.text.split('\n')[0]}
       sx={{
-        border: `1px solid ${mode.kind === 'reading' ? oklch(0.256, 0.014, 265) : palette.border}`,
+        border: `1px solid ${borderColor}`,
         bgcolor: oklch(0.176, 0.013, 265),
         borderRadius: 1.75,
         px: 2,
@@ -274,13 +293,16 @@ function InboxCard({
       )}
 
       {mode.kind === 'filing' && (
-        <FileIdea
-          item={item}
-          cluster={mode.cluster}
-          filing={actions.filing}
-          onCancel={reading}
-          onFile={(input) => actions.file(input, mode.cluster)}
-        />
+        // The form takes on the colours of the domain it's filing into.
+        <DomainTheme hue={mode.target.domain.themeHue}>
+          <FileIdea
+            item={item}
+            target={mode.target}
+            filing={actions.filing}
+            onCancel={reading}
+            onFile={(input) => actions.file(input, mode.target)}
+          />
+        </DomainTheme>
       )}
 
       {mode.kind === 'reading' && (
@@ -289,30 +311,33 @@ function InboxCard({
             <Typography component="span" sx={{ ...overlineSx, mr: 0.5 }}>
               File into
             </Typography>
-            {clusters.map((cluster) => (
-              <ButtonBase
-                key={cluster.id}
-                onClick={() => setMode({ kind: 'filing', cluster })}
-                sx={{
-                  border: `1px solid ${palette.border}`,
-                  bgcolor: oklch(0.24, 0.035, palette.hue),
-                  color: oklch(0.9, 0.06, palette.hue),
-                  borderRadius: 0.75,
-                  px: 1.4,
-                  py: 0.6,
-                  fontSize: 12,
-                  '&:hover': { bgcolor: palette.border },
-                }}
-              >
-                {cluster.title}
-              </ButtonBase>
+            {domains.map((domain) => (
+              <DomainChoice
+                key={domain.id}
+                domain={domain}
+                selected={domain.slug === domainSlug}
+                onClick={() => setDomainSlug((current) => (current === domain.slug ? null : domain.slug))}
+              />
             ))}
-            {clusters.length === 0 && (
-              <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>
-                no clusters in this domain yet
-              </Typography>
-            )}
           </Box>
+          {chosen && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.9, mt: 1 }}>
+              {chosen.clusters.map((cluster) => (
+                <ClusterChoice
+                  key={cluster.id}
+                  hue={chosen.themeHue}
+                  onClick={() => setMode({ kind: 'filing', target: { domain: chosen, cluster } })}
+                >
+                  {cluster.title}
+                </ClusterChoice>
+              ))}
+              {chosen.clusters.length === 0 && (
+                <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  no clusters in {chosen.title} yet
+                </Typography>
+              )}
+            </Box>
+          )}
           <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
             <ButtonBase onClick={() => setMode({ kind: 'refining' })} sx={quietButtonSx}>
               Refine
@@ -324,6 +349,62 @@ function InboxCard({
         </>
       )}
     </Box>
+  );
+}
+
+/** A domain to file into, in its own colour. Choosing one shows its clusters. */
+function DomainChoice({
+  domain,
+  selected,
+  onClick,
+}: {
+  domain: DomainCloudEntry;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const colors = domainPalette(domain.themeHue);
+  return (
+    <ButtonBase
+      onClick={onClick}
+      aria-pressed={selected}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.75,
+        border: `1px solid ${selected ? colors.border : neutral.line}`,
+        bgcolor: selected ? colors.soft : 'transparent',
+        color: selected ? colors.accent : neutral.textSoft,
+        borderRadius: 0.75,
+        px: 1.3,
+        py: 0.55,
+        fontSize: 12,
+        '&:hover': { borderColor: colors.border, color: colors.accent },
+      }}
+    >
+      <Box component="span" aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: colors.accentBright }} />
+      {domain.title}
+    </ButtonBase>
+  );
+}
+
+function ClusterChoice({ hue, onClick, children }: { hue: number; onClick: () => void; children: string }) {
+  const colors = domainPalette(hue);
+  return (
+    <ButtonBase
+      onClick={onClick}
+      sx={{
+        border: `1px solid ${colors.border}`,
+        bgcolor: oklch(0.24, 0.035, hue),
+        color: oklch(0.9, 0.06, hue),
+        borderRadius: 0.75,
+        px: 1.4,
+        py: 0.6,
+        fontSize: 12,
+        '&:hover': { bgcolor: colors.border },
+      }}
+    >
+      {children}
+    </ButtonBase>
   );
 }
 
@@ -391,13 +472,13 @@ function RefineIdea({
 
 function FileIdea({
   item,
-  cluster,
+  target,
   filing,
   onFile,
   onCancel,
 }: {
   item: InboxItemView;
-  cluster: ClusterSummary;
+  target: FilingTarget;
   filing: boolean;
   onFile: (input: FileInboxItemInput) => void;
   onCancel: () => void;
@@ -413,19 +494,21 @@ function FileIdea({
     if (!title.trim()) return;
     onFile({
       id: item.id,
-      clusterId: cluster.id,
+      clusterId: target.cluster.id,
       title: title.trim(),
       description: description.trim() || null,
       priority,
     });
   };
 
+  const destination = `${target.domain.title} / ${target.cluster.title}`;
+
   return (
     <Box
       component="form"
       onSubmit={submit}
       onKeyDown={formShortcuts(onCancel)}
-      aria-label={`File into ${cluster.title}`}
+      aria-label={`File into ${destination}`}
       sx={{
         mt: 1.75,
         pt: 1.75,
@@ -435,7 +518,7 @@ function FileIdea({
         gap: 1.6,
       }}
     >
-      <Typography sx={{ ...overlineSx, color: palette.accent }}>File into {cluster.title}</Typography>
+      <Typography sx={{ ...overlineSx, color: palette.accent }}>File into {destination}</Typography>
       <TextField
         label="Card title"
         value={title}

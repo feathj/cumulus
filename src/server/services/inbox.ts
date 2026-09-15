@@ -1,7 +1,6 @@
-import type { Priority } from '@prisma/client';
+import type { Prisma, Priority } from '@prisma/client';
 
 import { DomainError, NotFoundError } from '../errors';
-import { getDomain } from './domains';
 import { withTransaction } from './types';
 import type { Db } from './types';
 
@@ -13,6 +12,11 @@ export interface InboxItemView {
   text: string;
   capturedAt: Date;
   archivedAt: Date | null;
+  /**
+   * The domain it was headed for, when it arrived with one (imported ideas,
+   * or captures from before the inbox was app-wide). A hint for filing, not a rule.
+   */
+  domain: { slug: string; title: string; themeHue: number } | null;
 }
 
 export interface Inbox {
@@ -36,7 +40,15 @@ export interface FiledCard {
   clusterSlug: string;
 }
 
-const itemSelect = { id: true, text: true, capturedAt: true, archivedAt: true } as const;
+const itemSelect = {
+  id: true,
+  text: true,
+  capturedAt: true,
+  archivedAt: true,
+  domain: { select: { slug: true, title: true, themeHue: true } },
+} satisfies Prisma.InboxItemSelect;
+
+const waiting = { filedAt: null, archivedAt: null } satisfies Prisma.InboxItemWhereInput;
 
 function requireText(text: string, what: string): string {
   const trimmed = text.trim();
@@ -48,23 +60,19 @@ function requireText(text: string, what: string): string {
 async function getUnfiledItem(db: Db, id: string) {
   const item = await db.inboxItem.findUnique({
     where: { id },
-    select: { id: true, domainId: true, filedAt: true, archivedAt: true },
+    select: { id: true, filedAt: true, archivedAt: true },
   });
   if (!item) throw new NotFoundError('Inbox item', id);
   if (item.filedAt) throw new DomainError('CONFLICT', 'That idea has already been filed.');
   return item;
 }
 
-export async function listInbox(db: Db, domainSlug: string): Promise<Inbox> {
-  const domain = await getDomain(db, domainSlug);
+/** The one inbox: everything waiting, from every domain or none. */
+export async function listInbox(db: Db): Promise<Inbox> {
   const [items, archived] = await Promise.all([
+    db.inboxItem.findMany({ where: waiting, orderBy: { capturedAt: 'desc' }, select: itemSelect }),
     db.inboxItem.findMany({
-      where: { domainId: domain.id, filedAt: null, archivedAt: null },
-      orderBy: { capturedAt: 'desc' },
-      select: itemSelect,
-    }),
-    db.inboxItem.findMany({
-      where: { domainId: domain.id, filedAt: null, archivedAt: { not: null } },
+      where: { filedAt: null, archivedAt: { not: null } },
       orderBy: { archivedAt: 'desc' },
       take: ARCHIVED_INBOX_LIMIT,
       select: itemSelect,
@@ -73,14 +81,15 @@ export async function listInbox(db: Db, domainSlug: string): Promise<Inbox> {
   return { items, archived };
 }
 
-/** Drops a thought into a domain's inbox, undecided. */
-export async function captureIdea(
-  db: Db,
-  { domainSlug, text }: { domainSlug: string; text: string },
-): Promise<InboxItemView> {
-  const domain = await getDomain(db, domainSlug);
+/** How many ideas are waiting on a decision, for the Inbox tab's badge. */
+export function countInbox(db: Db): Promise<number> {
+  return db.inboxItem.count({ where: waiting });
+}
+
+/** Drops a thought into the inbox, undecided, not even about its domain. */
+export async function captureIdea(db: Db, { text }: { text: string }): Promise<InboxItemView> {
   return db.inboxItem.create({
-    data: { domainId: domain.id, text: requireText(text, 'An idea') },
+    data: { text: requireText(text, 'An idea') },
     select: itemSelect,
   });
 }
@@ -100,9 +109,9 @@ export async function updateInboxItem(
 }
 
 /**
- * Turns a capture into a card in one of its domain's clusters, at the end of
- * the chosen priority, and marks the capture as filed. The capture row stays
- * behind as a record of where the card came from.
+ * Turns a capture into a card in any live cluster, at the end of the chosen
+ * priority, and marks the capture as filed under that cluster's domain. The
+ * capture row stays behind as a record of where the card came from.
  */
 export async function fileInboxItem(db: Db, input: FileInboxItemInput): Promise<FiledCard> {
   return withTransaction(db, async (tx) => {
@@ -110,8 +119,8 @@ export async function fileInboxItem(db: Db, input: FileInboxItemInput): Promise<
     if (item.archivedAt) throw new DomainError('CONFLICT', 'Restore that idea before filing it.');
 
     const cluster = await tx.cluster.findFirst({
-      where: { id: input.clusterId, domainId: item.domainId, archivedAt: null },
-      select: { id: true, slug: true, domain: { select: { slug: true } } },
+      where: { id: input.clusterId, archivedAt: null, domain: { archivedAt: null } },
+      select: { id: true, slug: true, domainId: true, domain: { select: { slug: true } } },
     });
     if (!cluster) throw new NotFoundError('Cluster', input.clusterId);
 
@@ -133,7 +142,7 @@ export async function fileInboxItem(db: Db, input: FileInboxItemInput): Promise<
     });
     await tx.inboxItem.update({
       where: { id: item.id },
-      data: { filedAt: new Date(), filedAsNodeId: node.id },
+      data: { filedAt: new Date(), filedAsNodeId: node.id, domainId: cluster.domainId },
     });
 
     return { nodeId: node.id, domainSlug: cluster.domain.slug, clusterSlug: cluster.slug };

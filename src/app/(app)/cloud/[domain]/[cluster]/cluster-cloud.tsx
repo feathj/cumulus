@@ -16,6 +16,7 @@ import { oklch, oklcha } from '@/lib/color';
 import { plural } from '@/lib/format';
 import { cardIcons } from '@/lib/icons';
 import { attention, neutral } from '@/lib/palette';
+import { clusterPath } from '@/lib/routes';
 import { useTRPC } from '@/trpc/client';
 
 import { MemoryPeek } from './memory-peek';
@@ -169,7 +170,7 @@ export function ClusterCloud({ domainSlug, clusterSlug }: { domainSlug: string; 
       {peekOpen && (
         <MemoryPeek
           summary={memory}
-          memoryHref={`/${domainSlug}/${clusterSlug}/memory`}
+          memoryHref={clusterPath(domainSlug, clusterSlug, 'memory')}
           onClose={() => setPeekOpen(false)}
         />
       )}

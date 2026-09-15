@@ -29,12 +29,11 @@ describe('createCluster', () => {
     ]);
   });
 
-  it("doesn't reuse an archived cluster's slug or one a domain page needs", async () => {
+  it("doesn't reuse an archived cluster's slug", async () => {
     const domain = await createDomain({ slug: 'personal' });
     await makeCluster(domain.id, { slug: 'house', title: 'Old house', archivedAt: new Date() });
 
     expect((await createCluster(testDb, { domainSlug: 'personal', title: 'House' })).slug).toBe('house-2');
-    expect((await createCluster(testDb, { domainSlug: 'personal', title: 'Inbox' })).slug).toBe('inbox-2');
   });
 
   it('refuses a name already in use, ignoring case, including by an archived cluster', async () => {

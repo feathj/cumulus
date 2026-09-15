@@ -16,6 +16,7 @@ import { srOnlyUntilFocused } from '@/lib/a11y';
 import { oklch, oklcha } from '@/lib/color';
 import { plural } from '@/lib/format';
 import { attention } from '@/lib/palette';
+import { clusterPath } from '@/lib/routes';
 import type { MemoryStats } from '@/server/services/clusters';
 import { useTRPC } from '@/trpc/client';
 
@@ -93,7 +94,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
   );
 
   const openCluster = useCallback(
-    (clusterSlug: string) => router.push(`/${domainSlug}/${clusterSlug}`),
+    (clusterSlug: string) => router.push(clusterPath(domainSlug, clusterSlug)),
     [router, domainSlug],
   );
 
@@ -119,7 +120,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
       <Box component="ul" aria-label="Clusters" sx={srOnlyUntilFocused}>
         {clusters.map((cluster) => (
           <li key={cluster.id}>
-            <Link href={`/${domainSlug}/${cluster.slug}`}>{cluster.title}</Link>
+            <Link href={clusterPath(domainSlug, cluster.slug)}>{cluster.title}</Link>
           </li>
         ))}
       </Box>

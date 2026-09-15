@@ -18,7 +18,7 @@ export const moveInput = z.object({
   index: z.number().int().min(0).max(10_000),
 });
 
-export const captureInput = z.object({ domainSlug: slug, text: ideaText });
+export const captureInput = z.object({ text: ideaText });
 
 export const updateInboxInput = z.object({ id, text: ideaText });
 

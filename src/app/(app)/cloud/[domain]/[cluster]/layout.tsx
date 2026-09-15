@@ -11,7 +11,7 @@ import { NodeDrawer } from './node-drawer';
 export default async function ClusterLayout({
   children,
   params,
-}: LayoutProps<'/[domain]/[cluster]'>) {
+}: LayoutProps<'/cloud/[domain]/[cluster]'>) {
   const { domain, cluster } = await params;
 
   try {

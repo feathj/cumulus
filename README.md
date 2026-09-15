@@ -50,17 +50,23 @@ every run — creating it if needed — and empties every table between tests.
 
 | Route | View |
 | --- | --- |
-| `/` | Redirects to the first domain |
-| `/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards. The + in the corner adds a cluster |
-| `/[domain]/inbox` | Inbox: refine a capture, file it into a cluster as a card, or archive it |
-| `/[domain]/[cluster]` | Cluster cloud: open cards in rings (now innermost), plus a memory orb |
-| `/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed and archived below. Drag to reorder or reprioritize |
-| `/[domain]/[cluster]/memory` | Memory: Knowledge (what's believed now) and Timeline (how it got there) |
+| `/` | Redirects to the cloud |
+| `/today` | Today: focus and the day's journal together. A placeholder for now |
+| `/inbox` | Inbox, for every domain: refine a capture, file it into a domain's cluster as a card, or archive it |
+| `/cloud` | Top-level cloud: domains in their theme colours, with their clusters floating inside |
+| `/cloud/[domain]` | Domain cloud: clusters orbiting the domain, sized by open cards. The + in the corner adds a cluster |
+| `/cloud/[domain]/[cluster]` | Cluster cloud: open cards in rings (now innermost), plus a memory orb |
+| `/cloud/[domain]/[cluster]/cards` | Card board: Now / Next / Someday, recently completed and archived below. Drag to reorder or reprioritize |
+| `/cloud/[domain]/[cluster]/memory` | Memory: Knowledge (what's believed now) and Timeline (how it got there) |
 
-Every domain page has a capture box in the header: type, press Enter, and the
-idea lands in that domain's inbox. `/` focuses it from anywhere that isn't a
-text field. Filing suggests the first line as the card title and the rest as
-its description, and puts the card at the end of the chosen priority.
+Today, Inbox and Cloud are the app's three tabs. Every page shares the header
+with the capture box: type, press Enter, and the idea lands in the inbox without
+a domain. `/` focuses it from anywhere that isn't a text field. Filing picks the
+domain and cluster together (an idea that arrived with a domain, like an
+imported one, starts with it chosen), suggests the first line as the card title
+and the rest as its description, and puts the card at the end of the chosen
+priority. Inside the cloud, a breadcrumb leads back up each level. Paths are
+built in `src/lib/routes.ts`.
 
 Cards on the board and orbs in the cluster cloud show small icons when there's
 more inside: lines of text when the description says something besides its
@@ -70,14 +76,13 @@ stored as URLs but have a MIME type, so they count as attachments, not links.
 The icon paths live in `src/lib/icons.ts` so the cloud's canvas can draw the
 same shapes as the board.
 
-A new cluster's slug comes from its name, skipping any slug already taken —
-archived clusters included — and the domain's own page names (`inbox`,
-`focus`, `journal`), which a cluster would otherwise hide. **Archive cluster**,
+A new cluster's slug comes from its name, skipping any slug already taken,
+archived clusters included. **Archive cluster**,
 at the right of a cluster's toolbar, asks first, then returns to the domain
 cloud with an Undo. An archived cluster's cards, notes and memory are kept but
 drop out of every count.
 
-Confirmations like these go to one snackbar per domain (`NoticeProvider` in
+Confirmations like these go to one snackbar for the whole app (`NoticeProvider` in
 `src/components/notice.tsx`), so an Undo outlives the drawer or page that
 offered it.
 
@@ -93,8 +98,12 @@ jump to and flash a row.
 ```
 src/
   app/                 App Router: layouts, pages, and the tRPC route handler
-    [domain]/          domain shell (with the capture box), cloud, inbox/
-      [cluster]/       cluster toolbar, card drawer, cloud, cards/, memory/
+    (app)/             the shell: section tabs and capture box
+      today/           placeholder
+      inbox/           the app-wide inbox
+      cloud/           top-level cloud and breadcrumb bar
+        [domain]/      domain frame, toolbar and cloud
+          [cluster]/   cluster toolbar, card drawer, cloud, cards/, memory/
   components/
     cloud/             the physics cloud: Sigma renders, d3-force moves
     markdown.tsx       markdown with [[wiki link]] resolution
@@ -172,9 +181,10 @@ Sigma is imported inside an effect, so the cloud renders nothing on the server
 and appears once the client has loaded it. Each cloud also renders a list of its
 orbs that is hidden until keyboard focus enters it.
 
-**Cells.** Inside each cluster orb in the domain cloud, a few of its open cards
+**Cells.** Inside each cluster orb in a domain cloud, a few of its open cards
 drift as faint rings with tiny titles, sized by priority: now cards biggest and
-brightest, someday cards smallest. They're decoration, not controls: nothing
+brightest, someday cards smallest. Domain orbs in the top-level cloud hold their
+clusters the same way, sized by how many open cards each has. They're decoration, not controls: nothing
 about them can be hovered or clicked. `cells.ts` wanders them faster than the
 orbs move, keeps them inside a membrane just within the orb's edge and out of
 its nucleus — the space around the orb's label, which is shaded a little darker
@@ -184,8 +194,9 @@ cards, now first) so every card surfaces in time. Bigger orbs hold more, up to
 six. They're drawn on their own canvas between Sigma's node and label layers,
 and hold still with reduced motion.
 
-**Floating.** The domain cloud's orbs don't drift around their ring: they share
-one ring, and turning it just jams them together. Instead each is held near a
+**Floating.** Domain and cluster orbs, in the top-level and domain clouds, don't
+drift around their ring: they share one ring, and turning it just jams them
+together. Instead each is held near a
 home spot on the ring by a soft spring whose anchor wanders on a few slow,
 unrelated waves, so the orbs meander in place as if suspended in cytoplasm.
 Dropping a dragged orb makes that spot its new home. The cluster cloud keeps

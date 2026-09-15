@@ -19,10 +19,13 @@ import { useShowNotice } from '@/components/notice';
 import { SegmentGroup, segmentSx } from '@/components/segmented';
 import { plural } from '@/lib/format';
 import { neutral } from '@/lib/palette';
+import { cloudPath, clusterPath, domainPath } from '@/lib/routes';
 import type { ClusterRef } from '@/server/services/clusters';
 import { useTRPC, useTRPCClient } from '@/trpc/client';
 
-/** Back to the domain, the cluster's name, its three views, and archiving it. */
+import { CloudToolbar, CloudTrail } from '../../cloud-trail';
+
+/** The trail back up through the cloud, the cluster's three views, and archiving it. */
 export function ClusterToolbar({ domainSlug, clusterSlug }: { domainSlug: string; clusterSlug: string }) {
   const trpc = useTRPC();
   const pathname = usePathname();
@@ -31,56 +34,25 @@ export function ClusterToolbar({ domainSlug, clusterSlug }: { domainSlug: string
     trpc.cluster.board.queryOptions({ domainSlug, clusterSlug }),
   );
 
-  const base = `/${domainSlug}/${clusterSlug}`;
+  const { data: domains } = useSuspenseQuery(trpc.domain.list.queryOptions());
+  const domainTitle = domains.find((d) => d.slug === domainSlug)?.title ?? domainSlug;
+
   const views = [
-    { label: 'Cloud', href: base },
-    { label: 'Cards', href: `${base}/cards` },
-    { label: 'Memory', href: `${base}/memory` },
+    { label: 'Cloud', href: clusterPath(domainSlug, clusterSlug) },
+    { label: 'Cards', href: clusterPath(domainSlug, clusterSlug, 'cards') },
+    { label: 'Memory', href: clusterPath(domainSlug, clusterSlug, 'memory') },
   ];
   const openCards = board.tiers.NOW.length + board.tiers.NEXT.length + board.tiers.SOMEDAY.length;
 
   return (
-    <Box
-      sx={{
-        flex: '0 0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.75,
-        flexWrap: 'wrap',
-        px: 2.75,
-        py: 1.4,
-        borderBottom: 1,
-        borderColor: 'divider',
-      }}
-    >
-      <ButtonBase
-        component={Link}
-        href={`/${domainSlug}`}
-        sx={{
-          border: `1px solid ${neutral.lineStrong}`,
-          bgcolor: neutral.raised,
-          color: neutral.textSoft,
-          borderRadius: 1,
-          px: 1.5,
-          py: 0.85,
-          fontSize: 12,
-          '&:hover': { borderColor: neutral.muted },
-        }}
-      >
-        ← map
-      </ButtonBase>
-      <Typography
-        component="h2"
-        sx={{
-          fontSize: 14,
-          fontWeight: 500,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: palette.accent,
-        }}
-      >
-        {board.cluster.title}
-      </Typography>
+    <CloudToolbar>
+      <CloudTrail
+        steps={[
+          { label: 'Cloud', href: cloudPath },
+          { label: domainTitle, href: domainPath(domainSlug) },
+        ]}
+        current={board.cluster.title}
+      />
       <SegmentGroup label="Cluster views">
         {views.map((view) => {
           const active = pathname === view.href;
@@ -102,7 +74,7 @@ export function ClusterToolbar({ domainSlug, clusterSlug }: { domainSlug: string
       </Typography>
       <Box sx={{ flex: 1 }} />
       <ArchiveClusterButton domainSlug={domainSlug} cluster={board.cluster} openCards={openCards} />
-    </Box>
+    </CloudToolbar>
   );
 }
 
@@ -131,7 +103,7 @@ function ArchiveClusterButton({
   // Just the lists. Refetching the archived cluster's own board would 404 while it's still on screen.
   const refreshLists = () => {
     void queryClient.invalidateQueries({ queryKey: trpc.cluster.list.queryKey({ domainSlug }) });
-    void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
   };
 
   // Runs after this toolbar has gone (the page has moved to the domain), so it
@@ -140,7 +112,7 @@ function ArchiveClusterButton({
     trpcClient.cluster.restore.mutate({ id: cluster.id }).then(
       () => {
         refreshLists();
-        showNotice(`${cluster.title} is back.`, { label: 'Open', href: `/${domainSlug}/${cluster.slug}` });
+        showNotice(`${cluster.title} is back.`, { label: 'Open', href: clusterPath(domainSlug, cluster.slug) });
       },
       () => showNotice(`${cluster.title} couldn’t be restored.`),
     );
@@ -152,7 +124,7 @@ function ArchiveClusterButton({
       {
         onSuccess: () => {
           setConfirming(false);
-          router.push(`/${domainSlug}`);
+          router.push(domainPath(domainSlug));
           refreshLists();
           showNotice(`Archived ${cluster.title}.`, { label: 'Undo', onClick: undo });
         },

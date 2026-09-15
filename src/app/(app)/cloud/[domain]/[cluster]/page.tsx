@@ -2,7 +2,7 @@ import { getQueryClient, HydrateClient, trpc } from '@/trpc/server';
 
 import { ClusterCloud } from './cluster-cloud';
 
-export default async function ClusterCloudPage({ params }: PageProps<'/[domain]/[cluster]'>) {
+export default async function ClusterCloudPage({ params }: PageProps<'/cloud/[domain]/[cluster]'>) {
   const { domain, cluster } = await params;
   const input = { domainSlug: domain, clusterSlug: cluster };
   const queryClient = getQueryClient();

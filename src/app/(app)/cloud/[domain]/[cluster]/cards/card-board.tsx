@@ -174,7 +174,7 @@ export function CardBoard({ domainSlug, clusterSlug }: { domainSlug: string; clu
         onError: () => setFailure(`${node.title} couldn’t be restored.`),
         onSettled: () => {
           void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
-          void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+          void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
           void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
         },
       },

@@ -1,8 +1,11 @@
+import Box from '@mui/material/Box';
+
 import { getQueryClient, HydrateClient, trpc } from '@/trpc/server';
 
 import { DomainCloud } from './domain-cloud';
+import { DomainToolbar } from './domain-toolbar';
 
-export default async function DomainCloudPage({ params }: PageProps<'/[domain]'>) {
+export default async function DomainCloudPage({ params }: PageProps<'/cloud/[domain]'>) {
   const { domain } = await params;
   const queryClient = getQueryClient();
   await Promise.all([
@@ -12,7 +15,10 @@ export default async function DomainCloudPage({ params }: PageProps<'/[domain]'>
 
   return (
     <HydrateClient>
-      <DomainCloud domainSlug={domain} />
+      <DomainToolbar domainSlug={domain} />
+      <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <DomainCloud domainSlug={domain} />
+      </Box>
     </HydrateClient>
   );
 }

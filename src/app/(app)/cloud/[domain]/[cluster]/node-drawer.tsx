@@ -19,6 +19,7 @@ import { withAlpha } from '@/lib/color';
 import { formatDay, plural } from '@/lib/format';
 import { authorLabel, memoryTypeStyle } from '@/lib/memory-style';
 import { attention, neutral } from '@/lib/palette';
+import { clusterPath } from '@/lib/routes';
 import type { NodeDetail } from '@/server/services/nodes';
 import { useTRPC } from '@/trpc/client';
 
@@ -70,7 +71,7 @@ export function NodeDrawer() {
         animation: 'cumulusDrawerIn 200ms ease both',
       }}
     >
-      {/* Notices go to the domain's snackbar, so an Undo survives the drawer closing. */}
+      {/* Notices go to the app's snackbar, so an Undo survives the drawer closing. */}
       <NodeDetailPanel key={selectedId} id={selectedId} onClose={clear} onNotice={show} />
     </Box>
   );
@@ -119,7 +120,7 @@ function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
-    void queryClient.invalidateQueries({ queryKey: trpc.domain.list.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
     void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
   };
   const archive = useMutation(trpc.node.archive.mutationOptions({ onSettled: refresh }));
@@ -189,7 +190,7 @@ function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
 
 function NodeDetailBody({ node, onNotice }: { node: NodeDetail; onNotice: ShowNotice }) {
   const palette = useDomainPalette();
-  const memoryHref = `/${node.domain.slug}/${node.cluster.slug}/memory`;
+  const memoryHref = clusterPath(node.domain.slug, node.cluster.slug, 'memory');
   const pills = [
     PRIORITY_LABELS[node.priority],
     ...(node.completedAt ? [`done ${formatDay(node.completedAt)}`] : []),

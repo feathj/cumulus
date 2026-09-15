@@ -1,13 +1,10 @@
 import { notFound } from 'next/navigation';
-import { connection } from 'next/server';
 
 import { getQueryClient, HydrateClient, trpc } from '@/trpc/server';
 
-import { DomainShell } from './domain-shell';
+import { DomainFrame } from './domain-frame';
 
-export default async function DomainLayout({ children, params }: LayoutProps<'/[domain]'>) {
-  // Everything under a domain reads live data.
-  await connection();
+export default async function DomainLayout({ children, params }: LayoutProps<'/cloud/[domain]'>) {
   const { domain } = await params;
 
   const domains = await getQueryClient().fetchQuery(trpc.domain.list.queryOptions());
@@ -15,7 +12,7 @@ export default async function DomainLayout({ children, params }: LayoutProps<'/[
 
   return (
     <HydrateClient>
-      <DomainShell domainSlug={domain}>{children}</DomainShell>
+      <DomainFrame domainSlug={domain}>{children}</DomainFrame>
     </HydrateClient>
   );
 }
