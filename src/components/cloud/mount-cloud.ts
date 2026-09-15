@@ -6,11 +6,17 @@
  * The forces:
  *   collide  orbs push each other (and the hub) apart; this is what makes a
  *            thrown orb shove its neighbours
- *   orbit    pulls each orb toward its ring, stretched to the viewport's shape
- *   drift    a gentle push along the ring, so the cloud never quite settles
+ *
+ * and then one of two motions:
+ *   drift    orbit pulls each orb toward its ring, stretched to the viewport's
+ *            shape, and drift pushes it gently along, so the whole ring turns
+ *   float    each orb is held near a home spot on its ring by a soft spring
+ *            whose anchor wanders slowly, so orbs meander in place as if
+ *            suspended in something
  *
  * The simulation never cools completely (alphaTarget stays above zero), which
- * keeps the drift alive. With reduced motion there is no drift and it stops.
+ * keeps the motion alive. With reduced motion there's no drifting or wandering,
+ * and it settles and stops.
  */
 import type { createNodeBorderProgram as CreateNodeBorderProgram } from '@sigma/node-border';
 import { forceCollide, forceSimulation } from 'd3-force';
@@ -25,7 +31,7 @@ import type { CardIconName } from '@/lib/icons';
 import { MEMBRANE, cellCapacity, cellOpacity, cellRing, createCellSwarm } from './cells';
 import type { CellSwarm, Nucleus } from './cells';
 import { ellipseAxes, hash01 } from './geometry';
-import type { CloudHub, CloudOrb } from './types';
+import type { CloudHub, CloudMotion, CloudOrb } from './types';
 import { wrapText } from './wrap';
 
 const HUB_ID = '__hub';
@@ -57,6 +63,16 @@ const CELL_ALPHA = 0.3;
 const NUCLEUS_SHADE = 0.34;
 /** The faint ring of the membrane the cells stay inside. */
 const MEMBRANE_ALPHA = 0.14;
+/** How far a floating orb wanders from its home spot, in graph units, give or take. */
+const FLOAT_REACH = 12;
+/**
+ * The spring toward a floating orb's wandering anchor, per tick. Soft enough
+ * that the orb trails its anchor by a second or two, which is what makes it
+ * glide rather than track.
+ */
+const FLOAT_STRENGTH = 0.004;
+/** How fast the anchor wanders, in radians per second: long periods that never line up. */
+const FLOAT_WAVES = [(2 * Math.PI) / 23, (2 * Math.PI) / 61, (2 * Math.PI) / 29, (2 * Math.PI) / 53] as const;
 /** Space around the outermost orbit when fitting the camera. */
 const MARGIN = 36;
 
@@ -92,6 +108,12 @@ interface SimOrb extends SimulationNodeDatum {
   ring: number;
   direction: number;
   hub: boolean;
+  /** Where on its ring a floating orb lives, as an angle around the ellipse. */
+  homeAngle: number;
+  /** Phases of the waves its anchor wanders on, so no two orbs float in step. */
+  wander: readonly [number, number, number, number];
+  /** How quickly it wanders, relative to the others. */
+  pace: number;
 }
 
 type Axes = { kx: number; ky: number };
@@ -111,6 +133,12 @@ export interface MountCloudOptions {
   highlightColor: string;
   selectedId: string | null;
   onOrbClick: (id: string) => void;
+  motion: CloudMotion;
+}
+
+/** A stable phase for one of an orb's wandering waves. */
+function wavePhase(id: string, wave: number): number {
+  return hash01(`${id}~wave-${wave}`) * Math.PI * 2;
 }
 
 function resolveFonts(element: HTMLElement): { sans: string; serif: string } {
@@ -149,6 +177,9 @@ function seedPositions(orbs: CloudOrb[], axes: Axes): SimOrb[] {
         ring: orb.ring,
         direction: orb.direction,
         hub: false,
+        homeAngle: angle,
+        wander: [wavePhase(orb.id, 0), wavePhase(orb.id, 1), wavePhase(orb.id, 2), wavePhase(orb.id, 3)],
+        pace: 0.8 + 0.4 * hash01(`${orb.id}~pace`),
         x: axes.kx * orb.ring * Math.cos(angle),
         y: axes.ky * orb.ring * Math.sin(angle),
       };
@@ -229,6 +260,39 @@ function driftForce(getAxes: () => Axes): Force<SimOrb, undefined> {
   return force;
 }
 
+/**
+ * Holds each orb near a home spot on its ring with a soft spring, and lets
+ * the spring's anchor wander on a few slow waves. The orb trails the anchor,
+ * so it glides about its home rather than following a visible path. Time is
+ * counted in ticks, so a backgrounded tab picks up where it left off.
+ */
+function floatForce(getAxes: () => Axes, reach: number): Force<SimOrb, undefined> {
+  let nodes: SimOrb[] = [];
+  let tick = 0;
+  const [w1, w2, w3, w4] = FLOAT_WAVES;
+  const force = () => {
+    const t = tick++ / 60;
+    const { kx, ky } = getAxes();
+    for (const node of nodes) {
+      if (node.hub || node.fx != null) continue;
+      const [p1, p2, p3, p4] = node.wander;
+      const time = t * node.pace;
+      const targetX =
+        kx * node.ring * Math.cos(node.homeAngle) +
+        reach * (0.65 * Math.sin(time * w1 + p1) + 0.35 * Math.sin(time * w2 + p2));
+      const targetY =
+        ky * node.ring * Math.sin(node.homeAngle) +
+        reach * (0.65 * Math.sin(time * w3 + p3) + 0.35 * Math.sin(time * w4 + p4));
+      node.vx = (node.vx ?? 0) + (targetX - (node.x ?? 0)) * FLOAT_STRENGTH;
+      node.vy = (node.vy ?? 0) + (targetY - (node.y ?? 0)) * FLOAT_STRENGTH;
+    }
+  };
+  force.initialize = (initial: SimOrb[]) => {
+    nodes = initial;
+  };
+  return force;
+}
+
 export function mountCloud(options: MountCloudOptions): CloudHandle {
   const { Sigma, createNodeBorderProgram, container, orbs, hub } = options;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -243,6 +307,9 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     ring: 0,
     direction: 0,
     hub: true,
+    homeAngle: 0,
+    wander: [0, 0, 0, 0],
+    pace: 1,
     x: 0,
     y: 0,
     fx: 0,
@@ -608,10 +675,6 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
         .strength(0.85)
         .iterations(2),
     )
-    .force(
-      'orbit',
-      orbitForce(() => axes),
-    )
     .alphaTarget(reducedMotion ? 0 : DRIFT_ALPHA)
     .on('tick', () => {
       graph.updateEachNodeAttributes(
@@ -622,7 +685,12 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
         { attributes: ['x', 'y'] },
       );
     });
-  if (!reducedMotion) simulation.force('drift', driftForce(() => axes));
+  if (options.motion === 'float') {
+    simulation.force('float', floatForce(() => axes, reducedMotion ? 0 : FLOAT_REACH));
+  } else {
+    simulation.force('orbit', orbitForce(() => axes));
+    if (!reducedMotion) simulation.force('drift', driftForce(() => axes));
+  }
 
   // --- Dragging -----------------------------------------------------------------
 
@@ -671,6 +739,8 @@ export function mountCloud(options: MountCloudOptions): CloudHandle {
     released.fy = null;
     released.vx = throwVelocity.x * THROW;
     released.vy = throwVelocity.y * THROW;
+    // A floating orb takes the spot on its ring where it was let go as its new home.
+    released.homeAngle = Math.atan2((released.y ?? 0) / axes.ky, (released.x ?? 0) / axes.kx);
     simulation.alphaTarget(reducedMotion ? 0 : DRIFT_ALPHA).alpha(0.3).restart();
     container.style.cursor = '';
     if (travelled < CLICK_TOLERANCE_PX) options.onOrbClick(released.id);

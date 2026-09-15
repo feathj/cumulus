@@ -8,7 +8,7 @@ import { neutral } from '@/lib/palette';
 
 import { mountCloud } from './mount-cloud';
 import type { CloudHandle } from './mount-cloud';
-import type { CloudHub, CloudOrb } from './types';
+import type { CloudHub, CloudMotion, CloudOrb } from './types';
 
 export interface CloudCanvasProps {
   orbs: CloudOrb[];
@@ -18,6 +18,8 @@ export interface CloudCanvasProps {
   selectedId: string | null;
   onOrbClick: (id: string) => void;
   ariaLabel: string;
+  /** How orbs move at rest. Defaults to `drift`. */
+  motion?: CloudMotion;
 }
 
 interface Scene {
@@ -25,6 +27,7 @@ interface Scene {
   hub: CloudHub;
   tetherColor: string;
   highlightColor: string;
+  motion: CloudMotion;
 }
 
 /**
@@ -57,13 +60,14 @@ export function CloudCanvas({
   selectedId,
   onOrbClick,
   ariaLabel,
+  motion = 'drift',
 }: CloudCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<CloudHandle | null>(null);
   const onOrbClickRef = useRef(onOrbClick);
   const selectedIdRef = useRef(selectedId);
 
-  const sceneKey = JSON.stringify({ orbs, hub, tetherColor, highlightColor } satisfies Scene);
+  const sceneKey = JSON.stringify({ orbs, hub, tetherColor, highlightColor, motion } satisfies Scene);
 
   useEffect(() => {
     onOrbClickRef.current = onOrbClick;

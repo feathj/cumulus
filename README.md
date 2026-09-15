@@ -184,6 +184,13 @@ cards, now first) so every card surfaces in time. Bigger orbs hold more, up to
 six. They're drawn on their own canvas between Sigma's node and label layers,
 and hold still with reduced motion.
 
+**Floating.** The domain cloud's orbs don't drift around their ring: they share
+one ring, and turning it just jams them together. Instead each is held near a
+home spot on the ring by a soft spring whose anchor wanders on a few slow,
+unrelated waves, so the orbs meander in place as if suspended in cytoplasm.
+Dropping a dragged orb makes that spot its new home. The cluster cloud keeps
+the drift, where each ring of cards turns as a whole.
+
 **Labels on hover.** Sigma redraws a hovered node on a WebGL layer above the
 labels, which suits labels beside a node but covered ours, drawn inside. That
 layer is hidden; hovering only adds the ring.

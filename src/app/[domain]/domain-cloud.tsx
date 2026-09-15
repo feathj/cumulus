@@ -103,6 +103,7 @@ export function DomainCloud({ domainSlug }: { domainSlug: string }) {
         <CloudCanvas
           orbs={orbs}
           hub={hub}
+          motion="float"
           tetherColor={oklcha(0.52, 0.09, hue, 0.3)}
           highlightColor={palette.accent}
           selectedId={null}

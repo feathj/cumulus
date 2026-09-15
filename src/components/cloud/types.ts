@@ -43,3 +43,10 @@ export interface CloudHub {
   border: string;
   labelColor: string;
 }
+
+/**
+ * How orbs move when nothing's touching them. `drift` turns each ring slowly,
+ * for rings of cards. `float` keeps each orb near its own spot and lets it
+ * meander there, for a single ring of clusters that would jam if it turned.
+ */
+export type CloudMotion = 'drift' | 'float';
