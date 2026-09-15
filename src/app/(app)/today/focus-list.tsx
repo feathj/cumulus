@@ -15,49 +15,40 @@ import { cardPath, cloudPath } from '@/lib/routes';
 import type { FocusCard } from '@/server/services/focus';
 import { useTRPC, useTRPCClient } from '@/trpc/client';
 
-import { SectionTitle } from './today-parts';
+import { SectionTitle, useDayRefresh } from './today-parts';
 import type { DayInput } from './today-parts';
 
 /**
  * Every domain's focus block in one list, each card in its domain's colour.
- * Checking a card off completes it, and it stays, struck through, for the rest
- * of the day. Open cards carry over, marked with the day they were queued.
+ * Nothing here is dated: a card waits until it's checked off, however many
+ * days that takes, and is marked with the day it was queued. Checking one off
+ * moves it into the day's Done list.
  */
 export function FocusList({ input, cards, today }: { input: DayInput; cards: FocusCard[]; today: string }) {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const show = useShowNotice();
+  const refresh = useDayRefresh();
   const dayQueryKey = trpc.today.day.queryKey(input);
 
-  // A card's state also shows on its board, in its drawer and in the counts above.
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: trpc.today.pathKey() });
-    void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
-    void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
-    void queryClient.invalidateQueries({ queryKey: trpc.node.pathKey() });
-  };
-
-  // The checkbox ticks straight away; the server catches up.
-  const markDone = async (nodeId: string, completedAt: Date | null) => {
-    await queryClient.cancelQueries({ queryKey: dayQueryKey });
-    queryClient.setQueryData(dayQueryKey, (old) =>
-      old?.focus
-        ? { ...old, focus: old.focus.map((card) => (card.nodeId === nodeId ? { ...card, completedAt } : card)) }
-        : old,
-    );
-  };
+  // The card moves to Done straight away; the server catches up.
   const complete = useMutation(
     trpc.node.complete.mutationOptions({
-      onMutate: ({ id }) => markDone(id, new Date()),
+      onMutate: async ({ id }) => {
+        await queryClient.cancelQueries({ queryKey: dayQueryKey });
+        queryClient.setQueryData(dayQueryKey, (old) => {
+          const card = old?.focus?.find((queued) => queued.nodeId === id);
+          if (!old?.focus || !card) return old;
+          const { nodeId, title, kind, priority, domain, cluster } = card;
+          return {
+            ...old,
+            focus: old.focus.filter((queued) => queued.nodeId !== id),
+            done: [...old.done, { nodeId, title, kind, priority, domain, cluster, completedAt: new Date() }],
+          };
+        });
+      },
       onError: () => show('That card couldn’t be checked off.'),
-      onSettled: refresh,
-    }),
-  );
-  const reopen = useMutation(
-    trpc.node.reopen.mutationOptions({
-      onMutate: ({ id }) => markDone(id, null),
-      onError: () => show('That card couldn’t be reopened.'),
       onSettled: refresh,
     }),
   );
@@ -88,12 +79,13 @@ export function FocusList({ input, cards, today }: { input: DayInput; cards: Foc
     else groups.push({ domain: card.domain, cards: [card] });
   }
 
-  const doneCount = cards.filter((card) => card.completedAt).length;
-  const meta = cards.length ? `${cards.length - doneCount} open${doneCount ? ` · ${doneCount} done` : ''}` : undefined;
-
   return (
     <Box component="section" aria-labelledby="focus-heading" sx={{ minWidth: 0 }}>
-      <SectionTitle id="focus-heading" title="Focus" meta={meta} />
+      <SectionTitle
+        id="focus-heading"
+        title="Focus"
+        meta={cards.length ? `${cards.length} waiting` : undefined}
+      />
       {groups.length === 0 ? (
         <Typography
           sx={{
@@ -110,7 +102,7 @@ export function FocusList({ input, cards, today }: { input: DayInput; cards: Foc
           <MuiLink component={Link} href={cloudPath}>
             cloud
           </MuiLink>{' '}
-          and choose “Add to focus”. Cards stay here, day to day, until they’re done.
+          and choose “Add to focus”. Cards stay here, day after day, until they’re done.
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.25 }}>
@@ -141,7 +133,7 @@ export function FocusList({ input, cards, today }: { input: DayInput; cards: Foc
                       card={card}
                       timeZone={input.timeZone}
                       today={today}
-                      onToggle={() => (card.completedAt ? reopen : complete).mutate({ id: card.nodeId })}
+                      onCheckOff={() => complete.mutate({ id: card.nodeId })}
                       onRemove={() => takeOut(card)}
                     />
                   ))}
@@ -159,22 +151,18 @@ function FocusRow({
   card,
   timeZone,
   today,
-  onToggle,
+  onCheckOff,
   onRemove,
 }: {
   card: FocusCard;
   timeZone: string;
   today: string;
-  onToggle: () => void;
+  onCheckOff: () => void;
   onRemove: () => void;
 }) {
   const colors = domainPalette(card.domain.themeHue);
-  const done = card.completedAt !== null;
   const queued = dayIn(card.addedAt, timeZone);
-  const details = [
-    card.cluster.title,
-    ...(done ? ['done today'] : queued < today ? [`waiting since ${formatShortDay(queued, today)}`] : []),
-  ];
+  const details = [card.cluster.title, ...(queued < today ? [`waiting since ${formatShortDay(queued, today)}`] : [])];
 
   return (
     <Box
@@ -187,17 +175,16 @@ function FocusRow({
         pr: 0.75,
         py: 0.6,
         border: `1px solid ${neutral.line}`,
-        borderLeft: `3px solid ${done ? neutral.lineStrong : colors.border}`,
+        borderLeft: `3px solid ${colors.border}`,
         borderRadius: 1,
-        bgcolor: done ? 'transparent' : neutral.surface,
-        transition: 'background-color 160ms ease, border-color 160ms ease',
+        bgcolor: neutral.surface,
       }}
     >
       <Checkbox
-        checked={done}
-        onChange={onToggle}
+        checked={false}
+        onChange={onCheckOff}
         size="small"
-        slotProps={{ input: { 'aria-label': done ? `Reopen ${card.title}` : `Check off ${card.title}` } }}
+        slotProps={{ input: { 'aria-label': `Check off ${card.title}` } }}
         sx={{ color: colors.border, '&.Mui-checked': { color: colors.accent } }}
       />
       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -209,10 +196,9 @@ function FocusRow({
             display: 'block',
             fontSize: 14.5,
             lineHeight: 1.4,
-            color: done ? neutral.muted : neutral.text,
-            textDecoration: done ? 'line-through' : 'none',
+            color: neutral.text,
             overflowWrap: 'anywhere',
-            '&:hover': { color: done ? neutral.textSoft : colors.accent },
+            '&:hover': { color: colors.accent },
           }}
         >
           {card.title}

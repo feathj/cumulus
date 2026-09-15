@@ -25,9 +25,22 @@ describe('getDay', () => {
       journal: { body: 'Hello' },
     });
     expect(today.focus?.map((card) => card.nodeId)).toEqual([node.id]);
+    expect(today.done).toEqual([]);
 
     const yesterday = await getDay(testDb, { day: '2026-09-14', timeZone: 'UTC' }, now);
     expect(yesterday).toMatchObject({ day: '2026-09-14', today: '2026-09-15', focus: null, journal: { body: '' } });
+  });
+
+  it('logs what a past day came to, without that day having a focus block', async () => {
+    const now = new Date('2026-09-15T18:00:00Z');
+    const cluster = await createCluster((await createDomain()).id);
+    await createNode(cluster.id, { title: 'Done yesterday', completedAt: new Date('2026-09-14T15:00:00Z') });
+    await createNode(cluster.id, { title: 'Still open' });
+
+    const yesterday = await getDay(testDb, { day: '2026-09-14', timeZone: 'UTC' }, now);
+
+    expect(yesterday.focus).toBeNull();
+    expect(yesterday.done.map((card) => card.title)).toEqual(['Done yesterday']);
   });
 
   it('reads today in the time zone asked about', async () => {

@@ -2,14 +2,29 @@
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 import { neutral } from '@/lib/palette';
+import { useTRPC } from '@/trpc/client';
 
 /** The day a Today section shows and the time zone it's read in: the `today.day` query's input. */
 export interface DayInput {
   day: string;
   timeZone: string;
+}
+
+/** Refetches everywhere a card's state shows: the day, its board, its drawer and the counts above. */
+export function useDayRefresh(): () => void {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useCallback(() => {
+    for (const queryKey of [trpc.today.pathKey(), trpc.cluster.pathKey(), trpc.domain.pathKey(), trpc.node.pathKey()]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+  }, [trpc, queryClient]);
 }
 
 export const quietButtonSx = {

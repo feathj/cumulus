@@ -1,59 +1,96 @@
 import type { NodeKind, Priority } from '@prisma/client';
 
-import { dayIn } from '@/lib/day';
+import { dayIn, dayToDate, shiftDay } from '@/lib/day';
 import type { DayKey } from '@/lib/day';
 
 import { DomainError, NotFoundError } from '../errors';
 import { withTransaction } from './types';
 import type { Db } from './types';
 
-export interface FocusCard {
+interface DayCard {
   nodeId: string;
   title: string;
   kind: NodeKind;
   priority: Priority;
-  completedAt: Date | null;
-  /** When it joined the focus block. It carries over day to day until it's done. */
-  addedAt: Date;
   domain: { slug: string; title: string; themeHue: number };
   cluster: { slug: string; title: string };
 }
 
+export interface FocusCard extends DayCard {
+  /** When it joined the focus block. It waits there, day after day, until it's done. */
+  addedAt: Date;
+}
+
+export interface DoneCard extends DayCard {
+  completedAt: Date;
+}
+
+const cardSelect = {
+  id: true,
+  title: true,
+  kind: true,
+  priority: true,
+  cluster: {
+    select: { slug: true, title: true, domain: { select: { slug: true, title: true, themeHue: true } } },
+  },
+} as const;
+
 /**
- * Every domain's focus block, domain by domain in switcher order, as it stands
- * on `day`: open cards, carried over from whenever they were queued, and cards
- * checked off that day in `timeZone`. Cards checked off on an earlier day have
- * done their time and drop out.
+ * The open cards in every domain's focus block, domain by domain in switcher
+ * order. Nothing here is dated: a card waits in the queue until it's checked
+ * off, so it carries over from one day to the next by simply staying.
  */
-export async function listFocus(
-  db: Db,
-  { day, timeZone }: { day: DayKey; timeZone: string },
-): Promise<FocusCard[]> {
+export async function listFocus(db: Db): Promise<FocusCard[]> {
   const items = await db.focusItem.findMany({
     where: {
       domain: { archivedAt: null },
-      node: { archivedAt: null, cluster: { archivedAt: null } },
+      node: { completedAt: null, archivedAt: null, cluster: { archivedAt: null } },
     },
     orderBy: [{ domain: { position: 'asc' } }, { position: 'asc' }, { addedAt: 'asc' }],
-    select: {
-      addedAt: true,
-      domain: { select: { slug: true, title: true, themeHue: true } },
-      node: {
-        select: {
-          id: true,
-          title: true,
-          kind: true,
-          priority: true,
-          completedAt: true,
-          cluster: { select: { slug: true, title: true } },
-        },
-      },
-    },
+    select: { addedAt: true, node: { select: cardSelect } },
   });
 
-  return items
-    .filter(({ node }) => !node.completedAt || dayIn(node.completedAt, timeZone) === day)
-    .map(({ addedAt, domain, node: { id, cluster, ...node } }) => ({ nodeId: id, ...node, addedAt, domain, cluster }));
+  return items.map(({ addedAt, node: { id, cluster, ...node } }) => ({
+    nodeId: id,
+    ...node,
+    addedAt,
+    domain: cluster.domain,
+    cluster: { slug: cluster.slug, title: cluster.title },
+  }));
+}
+
+/**
+ * Everything checked off on a day, in the order it was done: the day's log of
+ * what got finished, whether or not it was ever in a focus block. Completion
+ * times are instants, so the day they belong to depends on the time zone.
+ */
+export async function listCompletedOn(
+  db: Db,
+  { day, timeZone }: { day: DayKey; timeZone: string },
+): Promise<DoneCard[]> {
+  // A local day starts somewhere inside the UTC days either side of it.
+  const nodes = await db.node.findMany({
+    where: {
+      archivedAt: null,
+      completedAt: { gte: dayToDate(shiftDay(day, -1)), lt: dayToDate(shiftDay(day, 2)) },
+      cluster: { archivedAt: null, domain: { archivedAt: null } },
+    },
+    orderBy: { completedAt: 'asc' },
+    select: { ...cardSelect, completedAt: true },
+  });
+
+  const cards: DoneCard[] = [];
+  for (const { id, cluster, completedAt, ...node } of nodes) {
+    if (!completedAt || dayIn(completedAt, timeZone) !== day) continue;
+    cards.push({
+      nodeId: id,
+      ...node,
+      completedAt,
+      domain: cluster.domain,
+      cluster: { slug: cluster.slug, title: cluster.title },
+    });
+  }
+  return cards;
 }
 
 /** Queues an open card at the end of its domain's focus block. Queuing a queued card changes nothing. */

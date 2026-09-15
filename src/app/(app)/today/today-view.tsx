@@ -15,6 +15,7 @@ import { neutral } from '@/lib/palette';
 import { dayPath, todayPath } from '@/lib/routes';
 import { useTRPC } from '@/trpc/client';
 
+import { DoneList } from './done-list';
 import { FocusList } from './focus-list';
 import { JournalPad } from './journal-pad';
 import { RoutineStrip } from './routine-strip';
@@ -57,12 +58,22 @@ export function TodayView({ day, timeZone }: { day: string; timeZone: string }) 
           sx={{
             mt: 4,
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: data.focus ? 'minmax(0, 5fr) minmax(0, 6fr)' : '1fr' },
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 5fr) minmax(0, 6fr)' },
             gap: { xs: 4, md: 4.5 },
             alignItems: 'start',
           }}
         >
-          {data.focus && <FocusList input={input} cards={data.focus} today={data.today} />}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5, minWidth: 0 }}>
+            {data.focus ? (
+              <FocusList input={input} cards={data.focus} today={data.today} />
+            ) : (
+              <Typography sx={{ fontSize: 12.5, lineHeight: 1.55, color: 'text.secondary' }}>
+                The focus block is only on today. Cards wait in it until they’re checked off, however many days
+                that takes — what they came to shows up here, on the day it happened.
+              </Typography>
+            )}
+            <DoneList input={input} cards={data.done} isToday={isToday} />
+          </Box>
           <JournalPad
             key={data.day}
             input={input}

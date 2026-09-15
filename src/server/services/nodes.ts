@@ -312,9 +312,10 @@ export async function restoreNode(db: Db, id: string): Promise<void> {
 }
 
 /**
- * Checks a card off. It leaves its tier, closing the gap, and stays in the
- * focus block, where it shows as done for the rest of the day. Checking off a
- * checked-off card changes nothing.
+ * Checks a card off. It leaves its tier, closing the gap, and joins that day's
+ * log of what got done. Its place in the focus block is kept but no longer
+ * shown, so reopening it puts it back in the queue. Checking off a checked-off
+ * card changes nothing.
  */
 export async function completeNode(db: Db, id: string): Promise<void> {
   await withTransaction(db, async (tx) => {
