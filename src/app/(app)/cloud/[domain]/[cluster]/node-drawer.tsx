@@ -8,9 +8,11 @@ import MuiLink from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { ClusterPicker } from '@/components/cluster-picker';
+import type { ClusterTarget } from '@/components/cluster-picker';
 import { useDomainPalette } from '@/components/domain-theme';
 import { Markdown } from '@/components/markdown';
 import { useShowNotice } from '@/components/notice';
@@ -20,8 +22,8 @@ import { formatDay, plural } from '@/lib/format';
 import { authorLabel, memoryTypeStyle } from '@/lib/memory-style';
 import { attention, neutral } from '@/lib/palette';
 import { clusterPath } from '@/lib/routes';
-import type { NodeDetail } from '@/server/services/nodes';
-import { useTRPC } from '@/trpc/client';
+import type { NodeDetail, TransferredCard } from '@/server/services/nodes';
+import { useTRPC, useTRPCClient } from '@/trpc/client';
 
 import { useNodeSelection } from './use-node-selection';
 
@@ -131,7 +133,7 @@ function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
     return (
       <Box
         sx={{
-          mt: 1.75,
+          flex: '1 1 100%',
           display: 'flex',
           alignItems: 'center',
           gap: 1.25,
@@ -181,15 +183,86 @@ function ArchiveControl({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
           },
         )
       }
-      sx={{ mt: 1.75, color: neutral.muted, borderColor: neutral.lineStrong }}
+      sx={{ color: neutral.muted, borderColor: neutral.lineStrong }}
     >
       Archive card
     </Button>
   );
 }
 
+/**
+ * Another cluster for the card, in any domain. Picking one moves it straight
+ * away, with Undo; the drawer stays on the card so you can see where it went.
+ */
+function MoveCard({ node, onDone, onNotice }: { node: NodeDetail; onDone: () => void; onNotice: ShowNotice }) {
+  const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+  const palette = useDomainPalette();
+  const { data: domains, isError } = useQuery(trpc.domain.cloud.queryOptions());
+  const [domainSlug, setDomainSlug] = useState<string | null>(node.domain.slug);
+
+  // Two boards, their memory and every count above them change.
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.cluster.pathKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.domain.pathKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.memory.pathKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.node.detail.queryKey({ id: node.id }) });
+  };
+  const transfer = useMutation(trpc.node.transfer.mutationOptions({ onSettled: refresh }));
+
+  // Undo can come after the drawer has closed, so it calls the client directly
+  // instead of through a mutation hook tied to this component.
+  const undo = (from: TransferredCard['from']) => {
+    trpcClient.node.transfer.mutate({ id: node.id, ...from }).then(
+      () => {
+        refresh();
+        onNotice('Card moved back.');
+      },
+      () => onNotice('That card couldn’t be moved back.'),
+    );
+  };
+
+  const pick = ({ domain, cluster }: ClusterTarget) =>
+    transfer.mutate(
+      { id: node.id, clusterId: cluster.id },
+      {
+        onSuccess: (moved) => {
+          onDone();
+          const focus = moved.leftFocus ? ` It left the ${node.domain.title} focus block.` : '';
+          onNotice(`Moved to ${domain.title} / ${cluster.title}.${focus}`, {
+            label: 'Undo',
+            onClick: () => undo(moved.from),
+          });
+        },
+        onError: () => onNotice('That card couldn’t be moved.'),
+      },
+    );
+
+  return (
+    <Box sx={{ mt: 1.25, border: `1px solid ${palette.border}`, borderRadius: 1, px: 1.5, py: 1.25 }}>
+      {domains ? (
+        <ClusterPicker
+          label="Move to"
+          domains={domains}
+          domainSlug={domainSlug}
+          onDomainChange={setDomainSlug}
+          onPick={pick}
+          excludeClusterId={node.cluster.id}
+          disabled={transfer.isPending}
+        />
+      ) : isError ? (
+        <Quiet>The clusters couldn’t be loaded.</Quiet>
+      ) : (
+        <CircularProgress size={16} aria-label="Loading clusters" />
+      )}
+    </Box>
+  );
+}
+
 function NodeDetailBody({ node, onNotice }: { node: NodeDetail; onNotice: ShowNotice }) {
   const palette = useDomainPalette();
+  const [moving, setMoving] = useState(false);
   const memoryHref = clusterPath(node.domain.slug, node.cluster.slug, 'memory');
   const pills = [
     PRIORITY_LABELS[node.priority],
@@ -229,7 +302,20 @@ function NodeDetailBody({ node, onNotice }: { node: NodeDetail; onNotice: ShowNo
         ))}
       </Box>
 
-      <ArchiveControl node={node} onNotice={onNotice} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.75 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          color="inherit"
+          aria-expanded={moving}
+          onClick={() => setMoving((open) => !open)}
+          sx={{ color: moving ? palette.accent : neutral.muted, borderColor: neutral.lineStrong }}
+        >
+          Move card
+        </Button>
+        <ArchiveControl node={node} onNotice={onNotice} />
+      </Box>
+      {moving && <MoveCard node={node} onDone={() => setMoving(false)} onNotice={onNotice} />}
 
       <Section title="Description">
         {node.description ? <Markdown size="compact">{node.description}</Markdown> : <Quiet>No description.</Quiet>}

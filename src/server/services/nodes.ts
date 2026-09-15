@@ -15,7 +15,7 @@ export interface NodeDetail {
   archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  cluster: { slug: string; title: string };
+  cluster: { id: string; slug: string; title: string };
   domain: { slug: string; title: string };
   /** Newest first. */
   notes: { id: string; body: string; author: AuthorKind; occurredAt: Date }[];
@@ -55,7 +55,7 @@ export async function getNodeDetail(db: Db, id: string): Promise<NodeDetail> {
       createdAt: true,
       updatedAt: true,
       cluster: {
-        select: { slug: true, title: true, domain: { select: { slug: true, title: true } } },
+        select: { id: true, slug: true, title: true, domain: { select: { slug: true, title: true } } },
       },
       notes: {
         orderBy: { occurredAt: 'desc' },
@@ -92,7 +92,7 @@ export async function getNodeDetail(db: Db, id: string): Promise<NodeDetail> {
   const { cluster, memoryEntries, _count, ...rest } = node;
   return {
     ...rest,
-    cluster: { slug: cluster.slug, title: cluster.title },
+    cluster: { id: cluster.id, slug: cluster.slug, title: cluster.title },
     domain: cluster.domain,
     memory: memoryEntries,
     inFocus: _count.focusItems > 0,
@@ -175,6 +175,92 @@ export async function moveNode(db: Db, { id, priority, index }: MoveNodeInput): 
     if (node.priority !== priority) {
       await renumber(tx, await boardTier(tx, node.clusterId, node.priority, id), node.priority);
     }
+  });
+}
+
+export interface TransferNodeInput {
+  id: string;
+  clusterId: string;
+  /** Defaults to the card's current priority. */
+  priority?: Priority | undefined;
+  /** The slot in the target tier. Defaults to, and is clamped to, the end. */
+  index?: number | undefined;
+}
+
+export interface TransferredCard {
+  nodeId: string;
+  domainSlug: string;
+  clusterSlug: string;
+  /** Where the card was, in a form that transferring it back to restores exactly. */
+  from: { clusterId: string; priority: Priority; index: number };
+  /** Whether it was taken out of its old domain's focus block. */
+  leftFocus: boolean;
+}
+
+/**
+ * Moves a card to another live cluster, in the same domain or another. Its
+ * notes, attachments and memory come with it. An open card takes a slot in the
+ * target tier and the gap it leaves is closed; completed and archived cards
+ * aren't on a board, so they just change cluster. The cloud position is
+ * dropped, since it belonged to the old cloud. Leaving the domain takes the
+ * card out of that domain's focus block, which is a commitment for that
+ * domain's time. Journal links and its inbox origin stay: they're history.
+ */
+export async function transferNode(db: Db, input: TransferNodeInput): Promise<TransferredCard> {
+  return withTransaction(db, async (tx) => {
+    const node = await tx.node.findUnique({
+      where: { id: input.id },
+      select: {
+        id: true,
+        clusterId: true,
+        priority: true,
+        position: true,
+        completedAt: true,
+        archivedAt: true,
+        cluster: { select: { domainId: true } },
+      },
+    });
+    if (!node) throw new NotFoundError('Node', input.id);
+
+    const target = await tx.cluster.findFirst({
+      where: { id: input.clusterId, archivedAt: null, domain: { archivedAt: null } },
+      select: { id: true, slug: true, domainId: true, domain: { select: { slug: true } } },
+    });
+    if (!target) throw new NotFoundError('Cluster', input.clusterId);
+    if (target.id === node.clusterId) {
+      throw new DomainError('BAD_REQUEST', 'That card is already in that cluster.');
+    }
+
+    const priority = input.priority ?? node.priority;
+    const open = !node.completedAt && !node.archivedAt;
+    // Its slot in board order rather than its position, which can have gaps.
+    const left = open ? await boardTier(tx, node.clusterId, node.priority) : [];
+    const index = open ? left.findIndex((card) => card.id === node.id) : node.position;
+
+    await tx.node.update({
+      where: { id: node.id },
+      data: { clusterId: target.id, priority, layoutX: null, layoutY: null },
+    });
+
+    if (open) {
+      const tier = await boardTier(tx, target.id, priority, node.id);
+      const slot = Math.min(Math.max(0, input.index ?? tier.length), tier.length);
+      const placed = { id: node.id, priority, position: node.position };
+      await renumber(tx, [...tier.slice(0, slot), placed, ...tier.slice(slot)], priority);
+      await renumber(tx, left.filter((card) => card.id !== node.id), node.priority);
+    }
+
+    const leftFocus =
+      target.domainId !== node.cluster.domainId &&
+      (await tx.focusItem.deleteMany({ where: { nodeId: node.id } })).count > 0;
+
+    return {
+      nodeId: node.id,
+      domainSlug: target.domain.slug,
+      clusterSlug: target.slug,
+      from: { clusterId: node.clusterId, priority: node.priority, index },
+      leftFocus,
+    };
   });
 }
 

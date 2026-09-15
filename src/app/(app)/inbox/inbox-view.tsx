@@ -11,6 +11,8 @@ import { useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 
 import { serif } from '@/app/theme';
+import { ClusterPicker } from '@/components/cluster-picker';
+import type { ClusterTarget } from '@/components/cluster-picker';
 import { DomainTheme, useDomainPalette } from '@/components/domain-theme';
 import { useShowNotice } from '@/components/notice';
 import type { ShowNotice } from '@/components/notice';
@@ -21,7 +23,7 @@ import { formatDay, formatTime } from '@/lib/format';
 import { splitIdea } from '@/lib/ideas';
 import { domainPalette, neutral } from '@/lib/palette';
 import { cardPath } from '@/lib/routes';
-import type { CloudCluster, DomainCloudEntry } from '@/server/services/domains';
+import type { DomainCloudEntry } from '@/server/services/domains';
 import type { FileInboxItemInput, InboxItemView } from '@/server/services/inbox';
 import { useTRPC } from '@/trpc/client';
 
@@ -46,10 +48,7 @@ const overlineSx = {
 } as const;
 
 /** Where a capture is being filed: a cluster, and the domain it's in. */
-interface FilingTarget {
-  domain: DomainCloudEntry;
-  cluster: CloudCluster;
-}
+type FilingTarget = ClusterTarget;
 
 /** Everything the inbox can do to a capture, with its confirmations. */
 function useInboxActions(show: ShowNotice) {
@@ -241,7 +240,6 @@ function InboxCard({
   const [mode, setMode] = useState<Mode>({ kind: 'reading' });
   // Start from the domain the idea arrived with, if it came with one.
   const [domainSlug, setDomainSlug] = useState<string | null>(item.domain?.slug ?? null);
-  const chosen = domains.find((domain) => domain.slug === domainSlug) ?? null;
   const reading = () => setMode({ kind: 'reading' });
 
   const borderColor =
@@ -307,37 +305,15 @@ function InboxCard({
 
       {mode.kind === 'reading' && (
         <>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.9, mt: 1.6 }}>
-            <Typography component="span" sx={{ ...overlineSx, mr: 0.5 }}>
-              File into
-            </Typography>
-            {domains.map((domain) => (
-              <DomainChoice
-                key={domain.id}
-                domain={domain}
-                selected={domain.slug === domainSlug}
-                onClick={() => setDomainSlug((current) => (current === domain.slug ? null : domain.slug))}
-              />
-            ))}
+          <Box sx={{ mt: 1.6 }}>
+            <ClusterPicker
+              label="File into"
+              domains={domains}
+              domainSlug={domainSlug}
+              onDomainChange={setDomainSlug}
+              onPick={(target) => setMode({ kind: 'filing', target })}
+            />
           </Box>
-          {chosen && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.9, mt: 1 }}>
-              {chosen.clusters.map((cluster) => (
-                <ClusterChoice
-                  key={cluster.id}
-                  hue={chosen.themeHue}
-                  onClick={() => setMode({ kind: 'filing', target: { domain: chosen, cluster } })}
-                >
-                  {cluster.title}
-                </ClusterChoice>
-              ))}
-              {chosen.clusters.length === 0 && (
-                <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  no clusters in {chosen.title} yet
-                </Typography>
-              )}
-            </Box>
-          )}
           <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
             <ButtonBase onClick={() => setMode({ kind: 'refining' })} sx={quietButtonSx}>
               Refine
@@ -349,62 +325,6 @@ function InboxCard({
         </>
       )}
     </Box>
-  );
-}
-
-/** A domain to file into, in its own colour. Choosing one shows its clusters. */
-function DomainChoice({
-  domain,
-  selected,
-  onClick,
-}: {
-  domain: DomainCloudEntry;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const colors = domainPalette(domain.themeHue);
-  return (
-    <ButtonBase
-      onClick={onClick}
-      aria-pressed={selected}
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.75,
-        border: `1px solid ${selected ? colors.border : neutral.line}`,
-        bgcolor: selected ? colors.soft : 'transparent',
-        color: selected ? colors.accent : neutral.textSoft,
-        borderRadius: 0.75,
-        px: 1.3,
-        py: 0.55,
-        fontSize: 12,
-        '&:hover': { borderColor: colors.border, color: colors.accent },
-      }}
-    >
-      <Box component="span" aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: colors.accentBright }} />
-      {domain.title}
-    </ButtonBase>
-  );
-}
-
-function ClusterChoice({ hue, onClick, children }: { hue: number; onClick: () => void; children: string }) {
-  const colors = domainPalette(hue);
-  return (
-    <ButtonBase
-      onClick={onClick}
-      sx={{
-        border: `1px solid ${colors.border}`,
-        bgcolor: oklch(0.24, 0.035, hue),
-        color: oklch(0.9, 0.06, hue),
-        borderRadius: 0.75,
-        px: 1.4,
-        py: 0.6,
-        fontSize: 12,
-        '&:hover': { bgcolor: colors.border },
-      }}
-    >
-      {children}
-    </ButtonBase>
   );
 }
 

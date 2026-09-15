@@ -39,3 +39,32 @@ describe('node.move', () => {
     });
   });
 });
+
+describe('node.transfer', () => {
+  it('moves a card into another domain', async () => {
+    const from = await createCluster((await createDomain()).id);
+    const church = await createDomain({ slug: 'church' });
+    const to = await createCluster(church.id, { slug: 'music' });
+    const node = await createNode(from.id);
+
+    const moved = await caller.node.transfer({ id: node.id, clusterId: to.id });
+
+    expect(moved).toMatchObject({ domainSlug: 'church', clusterSlug: 'music' });
+    expect(await testDb.node.findUniqueOrThrow({ where: { id: node.id } })).toMatchObject({ clusterId: to.id });
+  });
+
+  it('maps a move into the same cluster to BAD_REQUEST', async () => {
+    const cluster = await createCluster((await createDomain()).id);
+    const node = await createNode(cluster.id);
+
+    await expect(caller.node.transfer({ id: node.id, clusterId: cluster.id })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+  });
+
+  it('rejects a slot that is not a whole, non-negative number', async () => {
+    await expect(caller.node.transfer({ id: 'any', clusterId: 'any', index: -1 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+  });
+});

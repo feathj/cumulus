@@ -18,6 +18,14 @@ export const moveInput = z.object({
   index: z.number().int().min(0).max(10_000),
 });
 
+/** Another cluster for a card, optionally with its priority and slot there. */
+export const transferInput = z.object({
+  id,
+  clusterId: id,
+  priority: z.enum(Priority).optional(),
+  index: z.number().int().min(0).max(10_000).optional(),
+});
+
 export const captureInput = z.object({ text: ideaText });
 
 export const updateInboxInput = z.object({ id, text: ideaText });
